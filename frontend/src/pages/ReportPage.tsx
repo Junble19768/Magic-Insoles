@@ -1,78 +1,74 @@
-import { useEffect, useMemo, useState } from 'react'
-import { fetchHistory, fetchTodayReport } from '@/api/client'
+import { useCallback, useEffect, useState } from 'react'
+import type { ReactElement } from 'react'
+import { fetchHistory, fetchReport } from '@/api/client'
 import { HistoryPicker } from '@/components/HistoryPicker'
+import { PeriodSelector } from '@/components/report/PeriodSelector'
 import { ReportCard } from '@/components/ReportCard'
-import type { ReportData } from '@/types'
+import type { ReportData, ReportPeriod } from '@/types'
 
-type ReportPageState =
+type PageState =
   | { status: 'loading' }
   | { status: 'empty'; message: string }
   | { status: 'error'; message: string }
   | { status: 'ready'; report: ReportData }
 
-export function ReportPage() {
-  const [pageState, setPageState] = useState<ReportPageState>({ status: 'loading' })
+export function ReportPage(): ReactElement {
+  const [period, setPeriod] = useState<ReportPeriod>('today')
+  const [pageState, setPageState] = useState<PageState>({ status: 'loading' })
   const [historyDates, setHistoryDates] = useState<string[]>([])
   const [selectedDate, setSelectedDate] = useState('')
 
-  useEffect(() => {
-    let cancelled = false
+  const load = useCallback(async (p: ReportPeriod) => {
+    setPageState({ status: 'loading' })
 
-    async function loadReports(): Promise<void> {
-      setPageState({ status: 'loading' })
+    try {
+      const [reportRes, history] = await Promise.all([
+        fetchReport(p),
+        fetchHistory(7),
+      ])
 
-      try {
-        const [today, history] = await Promise.all([
-          fetchTodayReport(),
-          fetchHistory(7),
-        ])
-
-        if (cancelled) {
-          return
-        }
-
-        const dates = history.reports.map((item) => item.date)
-        setHistoryDates(dates.length > 0 ? dates : [today.date])
-        setSelectedDate(today.date)
-        setPageState({ status: 'ready', report: today })
-      } catch (error) {
-        if (cancelled) {
-          return
-        }
-
-        const message = error instanceof Error ? error.message : '加载报告失败'
-        if (message.includes('尚未生成')) {
-          setPageState({ status: 'empty', message })
-          return
-        }
-
-        setPageState({ status: 'error', message })
+      const report: ReportData = {
+        date: reportRes.dateRange.end,
+        reportText: reportRes.reportText,
+        stepCount: reportRes.stepCount,
+        gaitSummary: reportRes.gaitSummary,
+        generatedAt: reportRes.generatedAt,
       }
-    }
 
-    void loadReports()
-
-    return () => {
-      cancelled = true
+      const dates = history.reports.map((item) => item.date)
+      setHistoryDates(dates.length > 0 ? dates : [report.date])
+      setSelectedDate(report.date)
+      setPageState({ status: 'ready', report })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '加载报告失败'
+      if (message.includes('尚未生成')) {
+        setPageState({ status: 'empty', message })
+        return
+      }
+      setPageState({ status: 'error', message })
     }
   }, [])
 
-  const selectedReport = useMemo(() => {
-    if (pageState.status !== 'ready') {
-      return null
-    }
-    return pageState.report
-  }, [pageState])
+  useEffect(() => {
+    void load(period)
+  }, [load, period])
 
-  const handleDateChange = async (date: string): Promise<void> => {
+  const handlePeriodChange = useCallback((next: ReportPeriod) => {
+    setPeriod(next)
+  }, [])
+
+  const handleDateChange = useCallback(async (date: string) => {
     setSelectedDate(date)
 
-    if (selectedReport?.date === date) {
-      return
-    }
+    if (pageState.status !== 'ready') return
+    if (pageState.report.date === date) return
 
     try {
-      const history = await fetchHistory(30)
+      const [, history] = await Promise.all([
+        fetchReport('today'),
+        fetchHistory(30),
+      ])
+
       const match = history.reports.find((item) => item.date === date)
       if (!match) {
         setPageState({ status: 'empty', message: '该日期暂无报告' })
@@ -93,35 +89,35 @@ export function ReportPage() {
       const message = error instanceof Error ? error.message : '切换日期失败'
       setPageState({ status: 'error', message })
     }
-  }
+  }, [pageState])
 
   return (
-    <div className="page report-page">
+    <div className="page">
       <header className="page__header">
-        <h1>健康日报</h1>
-        <p>远程查看 AI 生成的步态报告</p>
+        <h1>运动报告</h1>
+        <p>AI 生成的步态健康分析报告</p>
       </header>
+
+      <PeriodSelector period={period} onChange={handlePeriodChange} />
 
       {historyDates.length > 0 ? (
         <HistoryPicker
           dates={historyDates}
           selectedDate={selectedDate || historyDates[0]}
-          onChange={(date) => {
-            void handleDateChange(date)
-          }}
+          onChange={(date) => { void handleDateChange(date) }}
         />
       ) : null}
 
       {pageState.status === 'loading' ? (
-        <p className="report-page__state">加载中…</p>
+        <p className="state-placeholder">加载中...</p>
       ) : null}
 
       {pageState.status === 'empty' ? (
-        <p className="report-page__state">{pageState.message}</p>
+        <p className="state-placeholder">{pageState.message}</p>
       ) : null}
 
       {pageState.status === 'error' ? (
-        <p className="report-page__state report-page__state--error">{pageState.message}</p>
+        <p className="state-placeholder state-placeholder--error">{pageState.message}</p>
       ) : null}
 
       {pageState.status === 'ready' ? <ReportCard report={pageState.report} /> : null}
