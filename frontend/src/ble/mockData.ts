@@ -129,3 +129,80 @@ export function resetMockStream(): void {
   streamState.phase = 0
   streamState.stepCount = 0
 }
+
+/* ── Balance Mock Stream ── */
+
+let balanceTimerId: number | null = null
+
+function gaussianNoise(): number {
+  let u = 0
+  let v = 0
+  while (u === 0) u = Math.random()
+  while (v === 0) v = Math.random()
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
+}
+
+function buildBalanceFrame(seq: number, swayAmp: number): PressureFrame {
+  const lx = gaussianNoise() * swayAmp
+  const ly = gaussianNoise() * swayAmp * 0.8
+  const rx = gaussianNoise() * swayAmp * 0.9
+  const ry = gaussianNoise() * swayAmp * 0.75
+
+  function pressuresForCop(cx: number, cy: number): number[] {
+    return Array.from({ length: 16 }, (_, i) => {
+      const row = Math.floor(i / 4)
+      const col = i % 4
+      const sx = col / 3
+      const sy = row / 3
+      const dist = Math.sqrt((sx - (cx + 1) / 2) ** 2 + (sy - (cy + 1) / 2) ** 2)
+      return clamp(Math.round((1 / Math.max(dist, 0.1)) * 45 + (Math.random() - 0.5) * 16), 0, 255)
+    })
+  }
+
+  const leftFoot = pressuresForCop(lx, ly)
+  const rightFoot = pressuresForCop(rx, ry)
+
+  return {
+    frameType: FRAME_TYPE_PRESSURE,
+    seq: seq % 65536,
+    pressures: [...leftFoot, ...rightFoot],
+    leftFoot,
+    rightFoot,
+    gaitState: 'standing',
+    mlClass: 'normal',
+    mlConf: 0.95,
+    stepCount: 0,
+    battery: 82,
+  }
+}
+
+/**
+ * Start a 30-second balance mock stream at 50Hz (~1500 frames).
+ */
+export function startBalanceMockStream(onFrame: (frame: PressureFrame) => void): void {
+  stopBalanceMockStream()
+
+  const totalFrames = 1500
+  let index = 0
+
+  balanceTimerId = window.setInterval(() => {
+    if (index >= totalFrames) {
+      stopBalanceMockStream()
+      return
+    }
+
+    const swayAmp = 0.04 + (index / totalFrames) * 0.04
+    onFrame(buildBalanceFrame(index, swayAmp))
+    index += 1
+  }, 20)
+}
+
+/**
+ * Stop the balance mock stream.
+ */
+export function stopBalanceMockStream(): void {
+  if (balanceTimerId !== null) {
+    window.clearInterval(balanceTimerId)
+    balanceTimerId = null
+  }
+}
