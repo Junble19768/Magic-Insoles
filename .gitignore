@@ -1,0 +1,123 @@
+.cache/
+/data/
+node_modules/
+dist/
+frontend/node_modules/
+frontend/dist/
+*.db
+ignored/
+
+*.jpg
+*.png
+
+.env
+__pycache__/
+.pytest_cache/
+.idea/
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.development
+.env.test
+.env.production
+.env.development.local
+
+
+untitled.py
+untitled.ipynb
+
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+env
+venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs and editors
+idea/
+vscode/
+
+# etc
+
+
+
+# ignore this file
+/target/
+/.idea/
+/.settings/
+/bin/
+
+.classpath
+.project
+.settings
+.idea
+# filter databfile、sln file
+*.mdb
+*.ldb
+*.sln
+# class file
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+# compression file
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+*.via
+*.tmp
+*.err
+*.log
+*.iml
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+.factorypath
+/.mvn/
+/mvnw.cmd
+/mvnw

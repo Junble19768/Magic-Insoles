@@ -1,0 +1,118 @@
+---
+description: 工业制冷官网设计哲学——面向北美工业买家的信任建立与信息架构
+alwaysApply: true
+---
+
+# Industrial Website Design Principles
+
+## Project Context
+
+GREENGAS 官网代表一家专注**工业制冷 / HVAC 定制解决方案**的中小企业。网站不卖单品，目标是建立信任、展示工程能力、引导潜在客户发起联系。
+
+目标客户：北美工业买家为主，同时兼顾国内企业与政府项目。采用 **欧美工业官网布局逻辑 + 保留国内客户需要的实力展示模块**。
+
+## 三条核心问题（10 秒内必须能回答）
+
+1. **What do you do?** — 工业制冷 / 定制冷却系统 / 工程交付
+2. **Can you solve my problem?** — 行业、方案、案例、能力
+3. **How do I contact you?** — 电话、Email、WhatsApp 等直接联系方式
+
+答不出 → 访客直接关闭。客户的问题才是 Hero，公司本身不是 Hero。
+
+## 信任模型：专业 > 规模
+
+| 欧美/北美 | 东亚（参考，勿照搬） |
+|-----------|---------------------|
+| 你能不能解决我的问题 | 你大不大、稳不稳 |
+| 案例、过程、结果 | 大楼、航拍、领导、员工合影 |
+| 具体数据与成果 | 500+、行业领先、国家级 |
+
+**Show, don't claim.** 欧美用户反感空洞宣传语；若真的好，用事实证明。
+
+## 品牌气质
+
+可靠 · 专业 · 务实 · 克制 · 稳定
+
+避免：创业公司风、SaaS 营销风、未来科技概念风、过度炫技。
+
+## 视觉设计
+
+### 风格：Modern Industrial Professional
+
+- 白底为主，浅灰辅助，大量留白
+- 品牌色：`#163B31`（主色）、`#0F2E25`（深背景）、`A8FF60`（点缀，少量使用）
+- 结构清晰、横向扫描友好（卡片网格、多栏布局）
+- 参考气质：Carrier、Trane、Johnson Controls、Lennox — 干净、克制、少动画
+
+### 禁止
+
+- 满屏粒子、星空、地球旋转、光束飞来飞去
+- 大面积深蓝/黑渐变 + 科技粒子
+- 霓虹色、过度渐变、装饰抢内容
+- 假 stock 图、握手照、AI 生成工业场景
+
+### 动效（适度即可）
+
+✅ Navbar 吸顶、Scroll Reveal、数字增长、卡片 hover  
+❌ 无信息量的背景动画
+
+## 信息架构
+
+### 首页优先级
+
+1. 业务一句话（Hero）
+2. 解决方案 / 产品种类
+3. 行业应用
+4. 案例 / 过往项目
+5. 工程能力与资质数据（兼顾国内客户）
+6. 公司简介（次要位置）
+7. 联系方式
+
+### 站点结构（与甲方需求对齐）
+
+- **Home** — 图为主、字少；产品种类 + 项目展示
+- **Solutions** — 按场景分类（船用、工厂、高温、防爆等），可展开案例详情
+- **About** — 历史、使命、团队、工厂图（支持性内容，非首屏）
+- **Contact** — Email、WhatsApp、微信、QQ、电话 + FAQ
+- **News** — 低频更新
+
+## 文案规则
+
+### 多用（Plain NA Business English）
+
+- Custom cooling systems for industrial facilities
+- Designed and installed 300+ cooling projects
+- Reduced energy consumption by 32% at [client type]
+
+### 少用
+
+- Industry-leading / World-class / Innovative / Best-in-class / Cutting-edge
+- 赋能、引领未来、卓越、一流（空洞抽象词）
+
+### 对比
+
+❌ Leading HVAC Solution Provider  
+✅ Custom Cooling Systems for Industrial Facilities
+
+❌ Dedicated to Innovation  
+✅ Designed and Installed 300+ Cooling Projects
+
+## 图片优先级
+
+1. 工程现场 / 已安装系统
+2. 设备细节
+3. 工程师作业
+4. 客户应用场景
+5. 工厂 / 办公楼（仅作辅助）
+
+## 联系方式
+
+北美用户倾向**直接联系**，而非仅留表单等销售回电。页眉/页脚/Contact 页应显著展示：电话、Email、WhatsApp、LinkedIn（如有）、地址。
+
+## 设计验收三问
+
+- 5 秒内能否理解业务？
+- 15 秒内能否找到相关专长？
+- 30 秒内能否找到信任理由？
+
+任一为否 → 简化页面。清晰度永远优于视觉复杂度。

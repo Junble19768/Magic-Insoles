@@ -1,0 +1,40 @@
+---
+description: Git工作流、提交规范与安全准则
+globs: "**/*"
+alwaysApply: true
+---
+# Git Workflow Rules
+
+## Branch Naming Convention
+- New features: `feature/[issue-number]-short-description`
+- Bug fixes: `fix/[issue-number]-short-description`
+- Hotfixes: `hotfix/short-description`
+
+## Commit Message Format
+- Format: `<type>(<scope>): <subject>`
+- Types: feat, fix, docs, style, refactor, test, chore
+- Example: `feat(auth): add login validation`
+
+## PR Description Template
+When generating PR descriptions, always include:
+1. **What:** Brief description of changes
+2. **Why:** Reason/motivation for changes
+3. **Test Plan:** How to verify changes
+4. **Screenshots (if UI change):**
+
+## Before suggesting a git commit message
+1. Read git diff and git status.
+2. Infer the engineering intent.
+3. Review code quality.
+4. Generate Conventional Commit messages.
+5. Never suggest vague commit messages.
+6. Never execute git commit automatically.
+7. Always wait for user confirmation.
+
+## Git Safety Rules
+- Never run `git reset --hard`
+- Never run `git push --force`
+- Never modify git history without confirmation
+- Only suggest rebase plans
+- Ask before executing any destructive git command
+改历史类操作（`rebase`、`commit --amend`、`reset`、`push --force-with-lease`）须用户明确确认后才可执行。

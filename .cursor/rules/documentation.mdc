@@ -1,0 +1,16 @@
+---
+description: 注释与文档规范
+globs: "**/*.{js,ts,jsx,tsx,py,java,go}"
+alwaysApply: true
+---
+# Documentation Standards
+
+## JSDoc for Public APIs
+```typescript
+/**
+ * Brief description of what the function does
+ * @param userId - Description of parameter
+ * @param options - Configuration options
+ * @returns Description of return value
+ * @throws {NotFoundError} When user doesn't exist
+ */

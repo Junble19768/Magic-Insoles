@@ -1,0 +1,25 @@
+---
+description: 命名规范标准
+globs: "**/*.{js,ts,jsx,tsx,py,java,go}"
+alwaysApply: true
+---
+# Naming Conventions
+
+## Variables & Functions
+- `camelCase` for variables and functions
+- Boolean variables: `isLoading`, `hasError`, `canSubmit`
+- Event handlers: `handleClick`, `onSubmit`, `onChange`
+
+## Classes & Components
+- `PascalCase` for classes and React components
+- File name matches default export name
+- Props interface: `{ComponentName}Props`
+
+## Constants
+- `UPPER_SNAKE_CASE` for global constants
+- `camelCase` for module-level constants
+
+## Avoid
+- Single-letter variables (except loop counters: i, j, k)
+- Hungarian notation (`strName`, `bIsValid`)
+- Abbreviations without clear meaning

@@ -1,0 +1,31 @@
+---
+description: 代码质量与安全标准
+globs: "**/*.{js,ts,jsx,tsx,py,java,go}"
+alwaysApply: true
+---
+# Code Quality & Security Standards
+
+## SQL Injection Prevention
+- ALWAYS use parameterized queries
+- NEVER concatenate user input directly into SQL
+- Use ORM query builders safely
+
+## Input Validation
+- Validate all user inputs on server side
+- Use allowlists over denylists when possible
+- Sanitize output based on context (HTML, JS, SQL)
+
+## Error Handling
+- NEVER expose stack traces to users
+- Log errors with appropriate context
+- Use structured error responses
+
+## Complexity Limits
+- Keep functions under 50 lines
+- Maximum nesting depth of 4 levels
+- Maximum cyclomatic complexity of 10
+
+## Hardcoded Secrets
+- NEVER commit passwords, API keys, or tokens
+- Use environment variables or secret managers
+- Never use default credentials

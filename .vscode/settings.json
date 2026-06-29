@@ -1,0 +1,58 @@
+{
+  // 光标设置为粗方块，并平滑移动
+  "editor.cursorStyle": "block",
+  "editor.cursorSmoothCaretAnimation": "on",
+  // 设置字体，并打开字体连字
+  "editor.fontFamily": "'Fira Code', 'MesloLGS NF', Consolas, 'Courier New', monospace",
+  "editor.fontLigatures": true,
+  // 缩进长度
+  "editor.tabSize": 4,
+  // 缩进默认为空格
+  "editor.insertSpaces": true,
+  // 关闭代码略缩图
+  "editor.minimap.enabled": false,
+  // 默认换行为 LF
+  "files.eol": "\n",
+  // 文件自动保存
+  "files.autoSave": "afterDelay",
+  // 打开文件时自动猜测编码
+  "files.autoGuessEncoding": true,
+  // 关闭“在文本被选中时自动显示悬浮提示”
+  "inlineChat.affordance": "off",
+  // 窗口标题，在Windows任务栏略缩图中显示
+  "window.title": "${dirty}${rootName}",
+  // 扩展：彩虹缩进；减少颜色污染
+  "indentRainbow.indicatorStyle": "light",
+  // 扩展：图标；
+  "workbench.iconTheme": "material-icon-theme",
+  // 设置Windows下默认终端为CMD
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  // 命令行复制多行时是否提示
+  "terminal.integrated.enableMultiLinePasteWarning": "never",
+  // Python 相关
+  // 严格检查代码
+  "python.analysis.typeCheckingMode": "standard",
+  // 把WorkSpace加入查找路径
+  "terminal.integrated.env.linux": {
+    "PYTHONPATH": "${workspaceFolder}"
+  },
+  "terminal.integrated.env.windows": {
+    "PYTHONPATH": "${workspaceFolder}"
+  },
+  "[python]": {
+    "editor.tabSize": 4,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+  },
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}",
+  ],
+  // C++ 相关
+  "C_Cpp.formatting": "clangFormat",
+  "[cpp]": {
+    "editor.tabSize": 2,
+  },
+  "terminal.integrated.fontFamily": "",
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda",
+  "python-envs.pythonProjects": [],
+}

@@ -1,0 +1,21 @@
+---
+description: TypeScript核心开发规范
+globs: "**/*.{ts,tsx}"
+alwaysApply: true
+---
+# TypeScript Core Standards
+
+## Type Safety
+- Enable `strict: true` in tsconfig.json
+- NEVER use `any` type (use `unknown` as escape hatch)
+- All function parameters and returns MUST have explicit types
+
+## Code Style
+- Prefer `interface` over `type` for object shapes
+- Use `const` objects instead of `enum`
+- No default exports except for page components
+
+## Functional Patterns
+- Use `readonly` for immutable props
+- Prefer `const` assertions (`as const`) for literal types
+- Use discriminated unions for state machines

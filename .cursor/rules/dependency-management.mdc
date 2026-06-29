@@ -1,0 +1,26 @@
+---
+description: 依赖管理与包安装规范
+globs: "**/*.{js,ts,json}"
+alwaysApply: true
+---
+# Dependency Management Standards
+
+## Adding Dependencies
+- Check if similar functionality exists before adding new packages
+- Prefer smaller, focused packages over large utility libraries
+- Verify package health (downloads, last update, open issues)
+
+## Version Pinning
+- Use exact versions (`--save-exact`) for production dependencies
+- Allow minor/patch updates for dev dependencies
+- Document version upgrade reasons in PR
+
+## Security Checks
+- Run `npm audit` or `yarn audit` before committing lock files
+- No dependencies with known critical vulnerabilities
+- Prefer packages with active maintenance (updated in last 6 months)
+
+## Forbidden Packages
+- Deprecated packages
+- Packages with unresolved security advisories
+- Packages that bundle their own dependencies unnecessarily
