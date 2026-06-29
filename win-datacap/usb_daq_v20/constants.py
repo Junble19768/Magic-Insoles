@@ -1,0 +1,17 @@
+"""USB-DAQ V20 protocol constants (from usb-daq-v20.cpp)."""
+
+VID = 0x7812
+PID = 0x55A9
+
+EP_IN1 = 0x81
+EP_IN2 = 0x82
+EP_OUT1 = 0x01
+
+INTERFACE = 0
+PACKET_TIMEOUT_MS = 100
+CARD_ID_READ_SIZE = 16
+MAX_DEVICES = 16
+
+CMD_DO_SET = 13
+
+AD_VOLTAGE_SCALE = 3.3 / 4096.0
