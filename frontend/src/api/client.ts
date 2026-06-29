@@ -1,4 +1,12 @@
-import type { ReportData, ReportHistoryResponse } from '@/types'
+import type {
+  ActivityHistory,
+  ActivitySummary,
+  GaitSummary,
+  GpsRoute,
+  ReportData,
+  ReportHistoryResponse,
+  ReportResponse,
+} from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 const API_KEY = import.meta.env.VITE_API_KEY ?? 'dev-magic-insoles-key'
@@ -34,10 +42,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
+// ── Reports ──
+
 export async function fetchTodayReport(): Promise<ReportData> {
   return request<ReportData>('/report/today')
 }
 
 export async function fetchHistory(days = 7): Promise<ReportHistoryResponse> {
   return request<ReportHistoryResponse>(`/report/history?days=${days}`)
+}
+
+export async function fetchReport(period: 'today' | 'week' | 'month'): Promise<ReportResponse> {
+  return request<ReportResponse>(`/report?period=${period}`)
+}
+
+// ── Activity ──
+
+export async function fetchActivityToday(): Promise<ActivitySummary> {
+  return request<ActivitySummary>('/activity/today')
+}
+
+export async function fetchActivityHistory(days = 7): Promise<ActivityHistory> {
+  return request<ActivityHistory>(`/activity/history?days=${days}`)
+}
+
+// ── Gait ──
+
+export async function fetchGaitSummary(date: string): Promise<GaitSummary> {
+  return request<GaitSummary>(`/gait/summary?date=${date}`)
+}
+
+// ── GPS ──
+
+export async function fetchGpsRoutes(date: string): Promise<GpsRoute> {
+  return request<GpsRoute>(`/gps/routes?date=${date}`)
 }
