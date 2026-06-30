@@ -178,7 +178,7 @@ def get_gps_routes(
     center_lat = 40.02
     center_lng = 116.39
     count = 55
-    now = date.today().timestamp()
+    now = datetime.now().timestamp()
     points = []
     for i in range(count):
         angle = (i / count) * math.pi * 2
