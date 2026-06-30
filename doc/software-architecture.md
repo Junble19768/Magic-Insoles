@@ -214,3 +214,5 @@ reports (
   ├── 固件：GPS 解析 + LTE 上传优化
   └── win-datacap：标定曲线导出
 ```
+
+部署与上云说明见 [deployment.md](deployment.md)。

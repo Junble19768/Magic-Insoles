@@ -23,3 +23,4 @@
 | [design-overview.md](design-overview.md) | 项目背景、设计思路、功能要点、待确认项（TBD） |
 | [software-architecture.md](software-architecture.md) | 代码结构、数据流图、实体功能清单、开发优先级 |
 | [data-protocol.md](data-protocol.md) | BLE 帧格式、HTTP 接口定义、前端解析示例 |
+| [deployment.md](deployment.md) | 阿里云 ECS 方案 A 部署：路径规划、双项目共机、上云步骤与限制 |

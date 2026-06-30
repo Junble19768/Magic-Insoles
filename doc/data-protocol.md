@@ -55,7 +55,15 @@ Offset  Size   Type    字段名          说明
 
 ### 下行：手机 Web → 后端（远程查看模式，HTTPS GET）
 
-**Base URL：** `https://<your-server>/api`  
+**Base URL**
+
+| 环境 | Base URL | 说明 |
+|------|----------|------|
+| 生产（目标） | `https://<domain>/api` | 有域名并配置 HTTPS 后使用 |
+| 测试（当前） | `http://<ECS公网IP>/api` | 无域名阶段，STM32 / 手机 Web 均用此形式 |
+
+示例（测试）：`POST http://47.xxx.xxx.xxx/api/ingest`
+
 **鉴权：** Header `X-API-Key: <固定密钥>`（单设备，无需登录）
 
 ### 2.1 STM32 上传原始数据帧（LTE 直传，非手机中转）
