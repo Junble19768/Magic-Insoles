@@ -1,0 +1,13 @@
+---
+description: 通用命名规范
+globs: "**/*.{js,ts,jsx,tsx,py,java,go,c,cc,cpp,h,hpp}"
+alwaysApply: false
+---
+# Naming Conventions
+
+- Variables/functions: `camelCase` in JS/TS/Java/C++; `snake_case` in Python unless framework conventions differ.
+- Types/classes/components: `PascalCase`.
+- Constants: `UPPER_SNAKE_CASE` for global constants; local module constants follow language convention.
+- Booleans should read as predicates: `isLoading`, `hasError`, `canSubmit`.
+- Event handlers: `handleClick`, `onSubmit`, `onChange`.
+- Avoid unexplained abbreviations, Hungarian notation, and single-letter names except conventional loop indices.

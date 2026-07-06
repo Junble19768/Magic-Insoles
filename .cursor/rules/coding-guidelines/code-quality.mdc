@@ -1,0 +1,13 @@
+---
+description: 通用代码质量与可维护性标准
+globs: "**/*.{js,ts,jsx,tsx,py,java,go,c,cc,cpp,h,hpp}"
+alwaysApply: false
+---
+# Code Quality
+
+- Keep functions focused and usually under ~50 lines.
+- Prefer early returns over deep nesting; avoid nesting deeper than 4 levels.
+- Keep cyclomatic complexity low; extract helpers when branches represent separate concepts.
+- Handle errors at the right boundary: convert low-level errors to domain/structured errors before exposing them.
+- Add tests around changed behavior when risk or blast radius is meaningful.
+- Avoid broad refactors while fixing a narrow issue unless the refactor directly reduces risk.

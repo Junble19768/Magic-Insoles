@@ -1,0 +1,25 @@
+---
+description: 文件、数据库、环境与运行操作安全边界
+globs: "**/*"
+alwaysApply: true
+---
+# Operational Safety
+
+## File Operations
+- Do not directly edit binary files, archives, media, model weights, lock databases, or large generated artifacts. Regenerate them with the project toolchain when needed.
+- Do not delete, overwrite, or mass-move files unless the user requested it or the plan explicitly requires it.
+- Preserve unrelated user changes in a dirty working tree; work around them instead of reverting them.
+
+## Secrets And Environment
+- Never write secrets, tokens, passwords, private keys, or real credentials into tracked files.
+- Do not modify global machine/user configuration (`git config`, shell profiles, global package managers, system env) unless explicitly requested.
+- Treat `.env*`, credentials files, and deployment config as sensitive; edit templates/docs instead when possible.
+
+## Database And Data
+- Never run destructive DB operations (`DROP`, `TRUNCATE`, bulk `DELETE`/`UPDATE`) without a backup/rollback plan and explicit user confirmation.
+- Prefer migrations over ad hoc schema changes; include rollback or recovery notes for risky migrations.
+- Use parameterized queries and transaction boundaries for data changes.
+
+## External Effects
+- Ask before actions with external side effects: production deploys, billing changes, sending emails/messages, publishing packages, or mutating remote services.
+- Prefer dry runs and scoped test environments before touching production.

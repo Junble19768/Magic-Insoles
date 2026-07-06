@@ -1,0 +1,13 @@
+---
+description: 依赖管理与包安装规范
+globs: "**/*.{js,ts,jsx,tsx,py,java,json,toml,yml,yaml,xml,gradle}"
+alwaysApply: false
+---
+# Dependency Management
+
+- Reuse existing project utilities before adding packages.
+- Prefer small, focused, actively maintained dependencies.
+- Check package health: maintenance activity, security advisories, ecosystem fit, and license.
+- Keep production dependencies conservative; document why a new dependency is needed.
+- Run the relevant audit/check command before committing lockfile changes when practical.
+- Do not add deprecated packages or packages with unresolved critical vulnerabilities.

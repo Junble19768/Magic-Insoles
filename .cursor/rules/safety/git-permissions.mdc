@@ -1,0 +1,33 @@
+---
+description: Git 权限分层与轻量提交规范
+globs: "**/*"
+alwaysApply: true
+---
+# Git Permissions
+
+## Autonomy
+- Agent may run `git add` and `git commit` without asking first.
+- Prefer small, frequent commits: one coherent feature point, fix, refactor, or documentation update per commit.
+- Before committing, inspect `git status` and relevant diffs; never include secrets, build artifacts, or unrelated user changes.
+
+## Confirmation Required（AskQuestion）
+- Ordinary `git push`.
+- Branch operations: create, switch, merge, delete, or set upstream.
+- Use `AskQuestion`; do not end with “reply to confirm”.
+
+## High-Risk Git
+- History changes (`rebase`, `commit --amend`, `reset --soft`, `reset --mixed`) and `git push --force-with-lease` require: user request, written plan with risks and commands, then explicit confirmation.
+- Never use `git reset --hard` or `git push --force` without lease.
+- Never change git config, skip hooks, or bypass verification unless the user explicitly requests it and accepts the risk.
+
+## Commit Format
+```text
+type(scope): subject
+
+Why: context or motivation
+How: core implementation change
+Refs: .cursor/tasks/<plan>.md
+```
+
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
+- Keep subject imperative and short; use the body for rationale. Omit body only for trivial changes.

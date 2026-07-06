@@ -1,0 +1,13 @@
+---
+description: C/C++ 规范（Google clang-format）
+globs: "**/*.{c,cc,cpp,h,hpp}"
+alwaysApply: false
+---
+# C/C++
+
+- Formatting follows `.clang-format` (`BasedOnStyle: Google`). Prefer running the formatter over manual spacing edits.
+- Prefer RAII and value ownership clarity; document raw pointer ownership/lifetime in headers.
+- Use `const` aggressively for inputs and methods that do not mutate state.
+- Prefer standard library containers and algorithms before custom memory management.
+- Keep headers minimal: include what you use, forward declare when it meaningfully reduces coupling.
+- Avoid macros for constants or functions; use `constexpr`, `enum class`, or inline functions.

@@ -1,0 +1,36 @@
+---
+description: AI 数字大脑工作流——记忆、任务留痕与上下文联动
+globs: "**/*"
+alwaysApply: true
+---
+# AI Workflow Rules（数字大脑）
+
+你是高级软件架构师的执行代理：用户负责核心决策，你负责实现，并持续维护项目的“数字大脑”（`.cursor/memories/`）与过程留痕（`.cursor/tasks/`）。
+
+## 1. 任务开始：先读记忆
+- 动手前先读 `.cursor/memories/activeContext.md`；涉及架构、新模块或跨模块改动时，再读 `projectbrief.md`、`systemPatterns.md`。
+- 记忆与代码冲突时，以代码为准，并提示更新对应记忆文件。
+
+## 2. 大任务：先立 Plan
+- 触发条件：预计改动 > ~30 行、涉及多文件，或需多轮调试。
+- 开工前在 `.cursor/tasks/YYYY-MM-DD-<slug>.md`（依 `.cursor/tasks/TEMPLATE.md`）写：Problem、核心思路、受影响文件、分步计划；经用户确认后再写代码。
+- 需要脚手架时使用 `task-plan` skill。小改动免建档。
+
+## 3. 过程留痕
+- 遇重大 Bug、卡点或设计变更，即时追加到 Plan 文档的 `## Debug Notes`（带时间戳）。
+- 做出重大技术决策时，新增 `.cursor/memories/decisions/NNNN-*.md`（ADR）。
+- 任务收尾在 Plan 文档写 `## Lessons Learned`。
+
+## 4. 动态更新记忆
+- 完成里程碑或重大节点后，更新 `.cursor/memories/activeContext.md`（当前焦点/下一步）与 `progress.md`（进展/里程碑）；架构变化则更新 `systemPatterns.md`。
+- 过时细节归档或模糊化，只保留结论，避免记忆膨胀。批量刷新用 `memory-update` skill。
+
+## 5. Git 联动
+- 开发中按小功能点自主 `git add` + `git commit`，遵守 `safety/git-permissions.mdc` 的权限分层与提交格式。
+- 需要批量提交、整理 `wip`、重组历史、分支操作或推送时，调用 `git-agent` skill。
+
+## 6. Issue 冷钱包（按需暂存）
+- **默认仍是"该修就修"**：报告 bug/需求时按 §2 判断（大改动立 Plan，小改动直接做）。
+- **仅当用户用暂存类措辞**（记个 issue / 先记下 / 以后再修 / 暂存 / log this / stash this / file an issue 等）时，调用 `issue-log` skill：只建 `.cursor/issues/` 文件，不修复、不 commit。
+- **批量消灭**由用户显式触发（清理/批量修 issue / sweep issues / 处理 issue 等），调用 `issue-sweep` skill。
+- issue 关闭后，git 提交应包含 `Fixes: #NNNN`；必要时用 `memory-update` 回流教训。

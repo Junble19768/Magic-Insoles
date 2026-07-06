@@ -1,0 +1,13 @@
+---
+description: Python 规范（PEP 8 / Black / Google docstring）
+globs: "**/*.py"
+alwaysApply: false
+---
+# Python
+
+- Follow PEP 8 and Black formatting; prefer formatter output over manual style debates.
+- Use type hints for public functions and complex internal boundaries.
+- Prefer explicit exceptions and narrow `except` clauses; do not swallow errors silently.
+- Keep side effects at boundaries; pure helpers are easier to test and reuse.
+- Use Google-style docstrings for public modules, classes, and functions.
+- Avoid mutable default arguments; use `None` sentinels or dataclass factories.

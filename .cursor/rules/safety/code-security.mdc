@@ -1,0 +1,23 @@
+---
+description: 代码安全标准
+globs: "**/*.{js,ts,jsx,tsx,py,java,go,c,cc,cpp,h,hpp}"
+alwaysApply: false
+---
+# Code Security
+
+## Input And Query Safety
+- Validate inputs at trust boundaries; prefer allowlists for constrained values.
+- Use parameterized queries or safe ORM builders. Never concatenate user input into SQL or shell commands.
+- Sanitize/escape output for the target context: HTML, JavaScript, SQL, logs, or filenames.
+
+## Secrets
+- Never hardcode passwords, API keys, tokens, or default credentials.
+- Do not log secret values; log stable IDs or redacted summaries.
+
+## Error Handling
+- Do not expose stack traces, raw database errors, or internal paths to users.
+- Return structured errors; log diagnostic context privately.
+
+## Auth And Authorization
+- Check authorization server-side for every privileged action.
+- Do not rely on UI hiding or client-side checks for access control.

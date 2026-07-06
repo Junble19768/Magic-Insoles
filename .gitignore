@@ -1,49 +1,77 @@
-.cache/
-/data/
-node_modules/
-dist/
-frontend/node_modules/
-frontend/dist/
-*.db
+# =============================================================================
+# Project-specific
+# =============================================================================
 ignored/
 
+# Local media (uncomment if you want images tracked)
 *.jpg
 *.png
 
+# =============================================================================
+# Node.js / Frontend
+# =============================================================================
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# Build outputs
+dist/
+frontend/dist/
+build/
+dist-ssr/
+.cache/
+.vite/
+
+# Vue / Nuxt
+.nuxt/
+.output/
+
+# Next.js
+.next/
+out/
+
+# Env & secrets
 .env
-__pycache__/
-.pytest_cache/
-.idea/
-.DS_Store
+.env.*
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
 .env.development
-.env.test
-.env.production
 .env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+*.local
 
-
-untitled.py
-untitled.ipynb
-
-
-# Byte-compiled / optimized / DLL files
+# =============================================================================
+# Python
+# =============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
+.Python
+*.egg-info/
+*.egg
+.installed.cfg
+MANIFEST
 
-# Distribution / packaging
-Python
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Packaging / tooling
 build/
 develop-eggs/
-dist/
 downloads/
-eggs/
 eggs/
 lib/
 lib64/
@@ -51,73 +79,104 @@ parts/
 sdist/
 var/
 wheels/
-*.egg-info/
-installed.cfg
-*.egg
-MANIFEST
+.pytest_cache/
 
-# Virtual environments
-env
-venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDEs and editors
-idea/
-vscode/
-
-# etc
-
-
-
-# ignore this file
-/target/
-/.idea/
-/.settings/
-/bin/
-
+# =============================================================================
+# Java / Maven
+# =============================================================================
+target/
 .classpath
 .project
+.settings/
 .settings
-.idea
-# filter databfile、sln file
-*.mdb
-*.ldb
-*.sln
-# class file
-*.com
+.idea/
+.factorypath
+.mvn/
+mvnw
+mvnw.cmd
+
 *.class
+*.jar
+*.war
+*.ear
+*.com
 *.dll
 *.exe
 *.o
-*.so
-# compression file
+*.iml
+
+# =============================================================================
+# C / C++
+# =============================================================================
+bin/
+
+# =============================================================================
+# Archives & logs
+# =============================================================================
 *.7z
 *.dmg
 *.gz
 *.iso
-*.jar
 *.rar
 *.tar
+*.tar.gz
 *.zip
 *.via
 *.tmp
 *.err
 *.log
-*.iml
-# OS generated files
+hs_err_pid*
+
+# =============================================================================
+# Databases
+# =============================================================================
+*.db
+*.db3
+*.sqlite
+*.sqlite3
+*.mdb
+*.ldb
+
+# =============================================================================
+# IDE & editors
+# =============================================================================
+.idea/
+.history/
+*.code-workspace
+*.sln
+
+# VSCode — keep shared team config
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# =============================================================================
+# OS generated
+# =============================================================================
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
 .DS_Store
 .DS_Store?
+.AppleDouble
+.LSOverride
+Icon
+Icon?
 ._*
 .Spotlight-V100
 .Trashes
-Icon?
-ehthumbs.db
-Thumbs.db
-.factorypath
-/.mvn/
-/mvnw.cmd
-/mvnw
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*

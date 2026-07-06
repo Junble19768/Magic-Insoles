@@ -1,0 +1,16 @@
+---
+description: 注释与 API 文档规范
+globs: "**/*.{js,ts,jsx,tsx,py,java,go,c,cc,cpp,h,hpp}"
+alwaysApply: false
+---
+# Documentation Standards
+
+- Document public APIs, exported types, non-obvious invariants, and operational gotchas.
+- Prefer concise rationale comments over comments that restate code.
+- Update docs when changing behavior, contracts, setup, or public interfaces.
+
+## Language Style
+- JS/TS: JSDoc/TSDoc for exported functions, classes, and complex props.
+- Python: Google-style docstrings for public modules/classes/functions.
+- C/C++: Doxygen-style comments for public headers and ownership/lifetime rules.
+- Java: Javadoc for public classes and methods, including checked exceptions and nullability expectations.

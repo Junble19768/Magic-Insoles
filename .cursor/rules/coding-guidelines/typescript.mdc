@@ -1,0 +1,13 @@
+---
+description: TypeScript 核心开发规范
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+# TypeScript
+
+- Prefer strict typing; do not use `any` unless there is no safe boundary, and explain why.
+- Use `unknown` for untrusted values and narrow explicitly.
+- Prefer `interface` for object shapes and discriminated unions for state variants.
+- Use `readonly` for immutable props/data and `as const` for literal objects.
+- Avoid default exports except where framework conventions require them.
+- Keep React props and public function contracts explicit.
