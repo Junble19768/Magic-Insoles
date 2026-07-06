@@ -56,19 +56,22 @@
 
 ## 进行中
 
-- **后端完整实施**（当前桩 → config/db/ingest/feature/llm/report），见 Task Plan
+- **后端完整实施**（当前桩 → config/db → TCP 二进制协议解析 → ingest/feature/llm/report），见 Task Plan
 
 ## 待办
 
 ### 后端（优先级最高）
 
 - [ ] `config.py` + `database.py` + `models/schemas.py`
-- [ ] `api/deps.py`（API Key 校验）
-- [ ] `api/ingest.py`（存库）
+- [ ] `protocol/device_frame.py`（CRC16 + TCP stream frame parser）
+- [ ] `protocol/payloads.py`（Force/GPS/Event/DeviceStatus payload parser）
+- [ ] `services/ingest.py`（TCP/HTTP 共用入库服务）
+- [ ] `services/tcp_ingest.py`（设备 TCP server）
+- [ ] `api/deps.py` + `api/ingest.py`（API Key 校验 + HTTP 调试入口）
 - [ ] `services/feature.py`（步频、COP、对称性）
 - [ ] `services/llm.py`（DeepSeek 调用）
 - [ ] `api/report.py`（查询 + 生成）
-- [ ] 替换 `main.py` 测试桩为完整路由
+- [ ] 替换 `main.py` 测试桩为完整路由与 TCP server lifecycle
 - [ ] `tests/` + `scripts/simulate_ingest.py`
 
 ### 前端打磨
@@ -82,7 +85,7 @@
 - [ ] `fsr_calibrate.py` 多项式拟合 + 导出 `calibration.json`
 - [ ] TinyML 模型采集训练部署（硬件组主导）
 - [ ] STM32 BLE 发送压力帧（固件）
-- [ ] STM32 LTE 直传后端（固件）
+- [ ] STM32 C serial bridge：按后端-设备 TCP 二进制协议组帧、CRC16 高字节在前、经 LTE/串口透传模块发送
 
 ### 扩展（时间充裕）
 
@@ -108,3 +111,4 @@
 | 2026-06 | 前端骨架完成 | 7 页面 + BLE/viz 模块 + 响应式布局 |
 | 2026-06 | 后端测试桩 | mock 全部 API 供前端联调 |
 | 2026-07-06 | 数字大脑初始化 | doc/TODO/TALK 归档，memories/tasks 就绪 |
+| 2026-07-06 | 设备接入协议定稿 | TCP 二进制帧；Force 30Hz/uint16；IMU 暂不发送；GPS/Status/Event 入库；CRC16 高字节在前 |

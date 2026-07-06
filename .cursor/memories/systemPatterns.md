@@ -13,7 +13,7 @@ flowchart TB
         FSM[步态FSM]
         TinyML[TinyML推理]
         BLE_Out[BLE Notify 50Hz]
-        LTE_Out[LTE HTTP POST批量]
+        LTE_Out[LTE/串口透传 TCP二进制帧]
         Feedback[LED/马达反馈]
         FSR --> FSM
         IMU --> FSM
@@ -35,7 +35,7 @@ flowchart TB
     end
 
     subgraph cloud [云端FastAPI]
-        Ingest[POST /api/ingest]
+        Ingest[设备TCP接入 + Ingest Service]
         DB[(SQLite)]
         Feature[特征提取]
         LLM[DeepSeek日报]
@@ -47,7 +47,7 @@ flowchart TB
     end
 
     BLE_Out -->|独立链路| ModeA
-    LTE_Out -->|独立链路| Ingest
+    LTE_Out -->|独立TCP链路| Ingest
     API -->|HTTPS GET| ModeB
 ```
 
@@ -101,19 +101,19 @@ magic-insoles/
 
 | 模块 | 对外接口 | 说明 |
 |------|----------|------|
-| FSR 采集 | 32 路压力值数组（float，kPa），100Hz | 左脚 index 0–15，右脚 16–31 |
-| IMU 采集 | 三轴加速度/角速度，200Hz | 步态事件检测辅助 |
+| FSR 采集 | 32 路压力值数组（uint16），30Hz | 左脚 index 0–15，右脚 16–31 |
+| IMU 采集 | 三轴加速度/角速度，200Hz | 当前采集但不发送，接口保留 |
 | 步态 FSM | heel_strike/toe_off、stand/walk/run | 基于总压力+加速度阈值 |
 | TinyML 推理 | 分类 0/1/2 + 置信度 | 模型待训练后部署 |
 | BLE 发送 | 41 字节帧，Notify，20ms 周期 | 见 techContext.md BLE 协议 |
-| LTE 上传 | POST 原始帧至后端，每 N 步批量 | 与 BLE 互不阻塞 |
+| LTE 上传 | TCP 二进制帧至后端，物联网模块做 UART/TCP 透传 | 与 BLE 互不阻塞 |
 | LED/马达反馈 | 连续 5 帧异常才触发 | 避免误报 |
 
 ### 后端（FastAPI）
 
 | 模块 | 接口 | 状态 |
 |------|------|------|
-| 数据接入 | `POST /api/ingest` | 桩已实现 |
+| 数据接入 | 设备 TCP 二进制协议 + `POST /api/ingest` 调试入口 | 桩已实现，TCP 待实现 |
 | 特征提取 | 内部服务 | 待实现 |
 | LLM 报告 | `GET /api/report/today`、`/history`、`?period=` | 桩已实现 |
 | 运动数据 | `GET /api/activity/today`、`/history` | 桩已实现 |
@@ -140,7 +140,7 @@ magic-insoles/
   └── 固件：BLE 发送压力帧
 
 阶段 2 — 云端 AI 闭环（当前焦点）
-  ├── 后端：数据接入 + SQLite 存储
+  ├── 后端：TCP 二进制设备接入 + SQLite 存储
   ├── 后端：DeepSeek 报告生成
   └── 前端：报告页展示（骨架已完成）
 
@@ -160,6 +160,6 @@ magic-insoles/
 ## 已知的坑 / 约束
 
 - **Web Bluetooth 要求 HTTPS 或 localhost**：`http://<IP>/insoles/realtime` 在真机上 BLE **不可用**，需 HTTPS 才能真机测试热力图
-- **STM32 LTE 测试阶段**：使用 `http://<IP>/api/ingest`（无域名）
+- **STM32 LTE 测试阶段**：使用物联网模块 TCP 透传连接后端 `DEVICE_TCP_PORT`；`POST /api/ingest` 仅作本地仿真/调试入口
 - **平衡评估 BLE 命令**：Write Characteristic `0000FFF2`，命令 `0x02 0x01`（开始）/ `0x02 0x00`（停止），待硬件组确认（TBD-BLE）
 - `sensorLayout.ts` 坐标为占位，待 TBD-1 确认

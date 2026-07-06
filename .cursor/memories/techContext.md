@@ -100,6 +100,36 @@ function parseInsoleFrame(dataView) {
 }
 ```
 
+## 设备 TCP 协议（后端-设备）
+
+真实设备接入主链路为 TCP 二进制应用层协议。STM32 侧使用 C serial bridge 组帧，物联网模块做 UART/TCP 透传；后端监听 `DEVICE_TCP_PORT`，解析 TCP 字节流并写入 SQLite。
+
+### 通用帧格式
+
+```text
+SOF_1        1 byte   0xA5
+SOF_2        1 byte   0x5A
+seq          2 bytes  uint16 little-endian, auto increase
+data_type    2 bytes  uint16 little-endian
+data_length  2 bytes  uint16 little-endian, payload bytes
+payload      N bytes
+crc16        2 bytes  CRC16-Modbus over SOF..payload, high byte first
+```
+
+CRC16 算法沿用 `.cursor/inputs/ai-discusses/serial_bridge_sample/crc16.hpp`，CRC 字节序明确为高字节在前、低字节在后。
+
+### Data Types
+
+| `data_type` | Payload | 策略 |
+|-------------|---------|------|
+| `0x0101` | Force | 30Hz 压力采样，每点 `uint16`，32 点，通常每 1s/30 样本发送 |
+| `0x0201` | IMU | 200Hz 采集但当前不发送，接口保留 |
+| `0x0301` | GPS | 不固定频率，收到定位即发送 |
+| `0x0401` | DeviceStatus | 状态变化或定时发送 |
+| `0x0501` | Event | 每 10s 或满 50 个事件发送；无事件时发送 1 个心跳事件 |
+
+后端实现细节以 `.cursor/tasks/2026-07-06-backend-implementation.md` 的“设备通讯协议（后端-设备）”为准。
+
 ## HTTP API
 
 ### Base URL
@@ -115,7 +145,8 @@ function parseInsoleFrame(dataView) {
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/ingest` | STM32 LTE 批量上传原始帧 |
+| TCP | `DEVICE_TCP_HOST:DEVICE_TCP_PORT` | 真实设备二进制帧接入 |
+| POST | `/api/ingest` | 开发/仿真调试入口，不作为真实设备主链路 |
 | GET | `/api/report/today` | 今日 AI 日报 |
 | GET | `/api/report/history?days=7` | 历史日报列表 |
 | GET | `/api/report?period=today\|week\|month` | 多周期 AI 报告 |
@@ -156,8 +187,9 @@ function parseInsoleFrame(dataView) {
 |------|--------|
 | BLE 帧大小 | 41 字节/帧 |
 | BLE 推送频率 | 50Hz → ~2KB/s（仅手机本地） |
-| LTE 上传频率 | 每 N 步一批，~820 字节/批 |
-| 每日存储（活动 1 小时） | ~7.4 MB 原始帧 |
+| 设备 TCP Force 帧 | 30Hz、30 样本/批、32 点 uint16 → payload 约 1930B/秒 |
+| Event 帧 | 每 10s 或满 50 个事件；无事件发送 1 个心跳事件 |
+| 每日压力存储（活动 1 小时） | 约 6.9 MB 原始压力 payload，不含 JSON/SQLite 开销 |
 
 ## 部署架构（阿里云 ECS 方案 A）
 
@@ -204,7 +236,8 @@ systemctl enable --now magic-insoles-api
 
 - BLE 仅 Android Chrome；http IP 访问时真机 BLE 不可用，需 HTTPS
 - SQLite 演示阶段，无需迁移数据库
-- STM32 经 LTE 直传 `POST /api/ingest`，手机不做中转
+- STM32 经 LTE/串口透传模块连接后端 TCP 端口，发送二进制应用层帧；手机不做中转
+- `POST /api/ingest` 仅保留为本地仿真/调试入口
 - API Key 写入固件 config，与前端 `VITE_API_KEY` 一致
 - 正式对外推广需域名 + ICP 备案
 

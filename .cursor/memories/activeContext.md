@@ -5,17 +5,18 @@
 
 ## 当前焦点
 
-**后端从测试桩升级为完整实现**——按 `.cursor/tasks/2026-07-06-backend-implementation.md` 实施 config → database → ingest → feature → llm → report 全链路。
+**后端从测试桩升级为完整实现**——按 `.cursor/tasks/2026-07-06-backend-implementation.md` 实施 config/database → 设备 TCP 二进制协议解析 → ingest → feature → llm → report 全链路。
 
 ## 近期变更
 
 - 2026-07-06 完成数字大脑初始化：旧 `doc/`、`TODO/`、`ignored/TALK_WITH_AI.md` 归档至 `.cursor/bakup/`，知识沉淀至 `.cursor/memories/`
+- 2026-07-06 后端-设备通讯路线更新：设备侧 C serial bridge + TCP 透传，后端集成二进制帧解析；压力 30Hz/uint16，IMU 采集但暂不发送，新增 Event `0x0501`
 - 2026-06~07 前端多页面骨架完成：7 个页面（Dashboard/Activity/Gait/Gps/Report/Realtime/Balance）+ BLE 模块 + viz 模块 + hooks + 响应式布局（PcSidebar/MobileTabBar）
 - 后端 `main.py` 仍为测试桩，mock 全部 API 端点（activity/gait/gps/report/ingest）
 
 ## 下一步
 
-- [ ] 按 Task Plan 实施后端完整实现（8 步顺序见 task 文档）
+- [ ] 按 Task Plan 实施后端完整实现（TCP 协议解析优先，11 步顺序见 task 文档）
 - [ ] 向硬件组确认 TBD-1（FSR 物理坐标映射）和 TBD-5（BLE UUID 最终值）
 - [ ] 向硬件组确认 TBD-BLE（平衡评估 Write Characteristic + 命令格式）
 - [ ] 真机 BLE 测试需 HTTPS 环境（当前 http IP 下不可用）
