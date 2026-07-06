@@ -1,0 +1,22 @@
+model: deepseek-v4-pro
+api_base: https://api.deepseek.com
+api_key: ""
+max_tokens: 512
+temperature: 0.7
+thinking:
+  enabled: false
+  budget_tokens: 0
+system_prompt: ""
+user_prompt_template: |
+  你是一名儿童运动健康顾问。以下是今日步态数据摘要：
+  - 运动时长：{walk_min} 分钟，总步数：{step_count}
+  - 平均步频：{step_freq} 步/分钟
+  - 步态评估：{gait_summary}（出现比例 {abnormal_pct}%）
+  - 左右脚对称性：{symmetry_desc}
+
+  请用简洁、友好的语言生成一份家长日报（150字以内），包含：
+  1. 今日运动总结
+  2. 一个具体改善建议（如有异常）
+  3. 一句鼓励孩子的话
+
+  注意：不使用医学诊断语气，语言适合普通家长阅读。
