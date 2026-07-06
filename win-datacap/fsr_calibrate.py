@@ -10,12 +10,15 @@ FSR 标定客户端：同时订阅 USB-DAQ FSR（TCP）与 Modbus 压力传感�
 """
 
 import asyncio
+import csv
 import json
 import struct
 import socket
 import threading
 import time
 from collections import deque
+from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 from pyqtgraph.Qt import QtCore, QtWidgets
@@ -44,6 +47,91 @@ FORCE_CHANNEL_NAMES = [
     "Ch4_Reg8-9",
     "Ch5_Reg10-11",
 ]
+
+RECORD_DIR = Path(__file__).resolve().parent / "record"
+
+
+def _csv_header() -> list[str]:
+    cols = ["timestamp"]
+    cols.extend(f"fsr_{i:02d}" for i in range(32))
+    cols.extend(f"force_ch{i}" for i in range(len(FORCE_CHANNEL_NAMES)))
+    cols.append("force_status")
+    return cols
+
+
+class CsvRecorder:
+    """按 FSR 帧节拍写入 CSV，文件名取开始录制时的系统时间。"""
+
+    def __init__(self):
+        self._file = None
+        self._writer: csv.writer | None = None
+        self._path: Path | None = None
+        self._last_fsr_stamp: float | None = None
+        self._row_count = 0
+
+    @property
+    def is_active(self) -> bool:
+        return self._file is not None
+
+    @property
+    def path(self) -> Path | None:
+        return self._path
+
+    @property
+    def row_count(self) -> int:
+        return self._row_count
+
+    def start(self) -> Path:
+        if self.is_active:
+            return self._path  # type: ignore[return-value]
+        RECORD_DIR.mkdir(parents=True, exist_ok=True)
+        name = datetime.now().strftime("%Y%m%d_%H%M%S") + ".csv"
+        self._path = RECORD_DIR / name
+        self._file = open(self._path, "w", newline="", encoding="utf-8")
+        self._writer = csv.writer(self._file)
+        self._writer.writerow(_csv_header())
+        self._last_fsr_stamp = None
+        self._row_count = 0
+        print(f"录制开始: {self._path}")
+        return self._path
+
+    def stop(self) -> int:
+        if not self.is_active:
+            return 0
+        count = self._row_count
+        path = self._path
+        self._file.close()
+        self._file = None
+        self._writer = None
+        self._last_fsr_stamp = None
+        print(f"录制结束: {path} ({count} 行)")
+        return count
+
+    def write_if_new(
+        self,
+        fsr_data: np.ndarray,
+        fsr_stamp: float,
+        force_values: list[float],
+        force_status: int,
+        force_ok: bool,
+    ) -> bool:
+        if not self.is_active or self._writer is None:
+            return False
+        if self._last_fsr_stamp is not None and fsr_stamp == self._last_fsr_stamp:
+            return False
+        self._last_fsr_stamp = fsr_stamp
+        row: list[float | str | int] = [fsr_stamp]
+        row.extend(float(fsr_data[i]) for i in range(32))
+        if force_ok and len(force_values) >= len(FORCE_CHANNEL_NAMES):
+            row.extend(float(force_values[i]) for i in range(len(FORCE_CHANNEL_NAMES)))
+            row.append(force_status)
+        else:
+            row.extend([""] * len(FORCE_CHANNEL_NAMES))
+            row.append("")
+        self._writer.writerow(row)
+        self._file.flush()
+        self._row_count += 1
+        return True
 
 
 def _fsr_label(index: int) -> str:
@@ -169,6 +257,7 @@ class FsrCalibrateApp(QtWidgets.QWidget):
 
         self.adc_buf = deque([0.0] * HISTORY, maxlen=HISTORY)
         self.force_buf = deque([0.0] * HISTORY, maxlen=HISTORY)
+        self.recorder = CsvRecorder()
 
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
@@ -194,6 +283,16 @@ class FsrCalibrateApp(QtWidgets.QWidget):
         self.clear_btn = QtWidgets.QPushButton("清空曲线")
         self.clear_btn.clicked.connect(self._clear_buffers)
         ctrl.addWidget(self.clear_btn)
+
+        ctrl.addSpacing(20)
+        self.start_record_btn = QtWidgets.QPushButton("开始录制")
+        self.start_record_btn.clicked.connect(self._on_start_record)
+        ctrl.addWidget(self.start_record_btn)
+
+        self.stop_record_btn = QtWidgets.QPushButton("停止录制")
+        self.stop_record_btn.clicked.connect(self._on_stop_record)
+        self.stop_record_btn.setEnabled(False)
+        ctrl.addWidget(self.stop_record_btn)
 
         ctrl.addStretch()
         root.addLayout(ctrl)
@@ -255,10 +354,27 @@ class FsrCalibrateApp(QtWidgets.QWidget):
             self.adc_buf.append(0.0)
             self.force_buf.append(0.0)
 
+    def _on_start_record(self):
+        path = self.recorder.start()
+        self.start_record_btn.setEnabled(False)
+        self.stop_record_btn.setEnabled(True)
+        print(f"录制文件: record/{path.name}")
+
+    def _on_stop_record(self):
+        count = self.recorder.stop()
+        self.start_record_btn.setEnabled(True)
+        self.stop_record_btn.setEnabled(False)
+        print(f"已保存 {count} 行")
+
     def _refresh(self):
         fsr_data, fsr_stamp, fsr_ok, force_values, force_stamp, force_ok, status = (
             self.hub.snapshot()
         )
+
+        if self.recorder.is_active and fsr_ok:
+            self.recorder.write_if_new(
+                fsr_data, fsr_stamp, force_values, status, force_ok
+            )
 
         if fsr_ok:
             self.adc_buf.append(float(fsr_data[self.fsr_channel]))
@@ -284,10 +400,20 @@ class FsrCalibrateApp(QtWidgets.QWidget):
             f"当前压力[{self.force_channel}]={force_now:.3f}",
             f"状态码=0x{status:04X}",
         ]
+        if self.recorder.is_active and self.recorder.path is not None:
+            parts.append(
+                f"录制中 → record/{self.recorder.path.name} "
+                f"({self.recorder.row_count} 行)"
+            )
         self.status_label.setText("  |  ".join(parts))
 
     def closeEvent(self, event):
         self.timer.stop()
+        if self.recorder.is_active:
+            count = self.recorder.stop()
+            path = self.recorder.path
+            if path is not None:
+                print(f"窗口关闭，录制已自动保存: {path} ({count} 行)")
         self._stop.set()
         event.accept()
 
