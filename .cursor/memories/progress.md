@@ -30,49 +30,49 @@
 | API 客户端 | `client.ts`（全部端点封装） | ✅ |
 | 类型定义 | `types/index.ts` | ✅ 已扩展 |
 
-### 后端（FastAPI 测试桩）
+### 后端（`backend_prod/` — 唯一权威）
 
-| 端点 | 状态 |
+| 模块 | 状态 |
 |------|------|
-| `GET /api/report/today` | ✅ mock |
-| `GET /api/report/history` | ✅ mock |
-| `GET /api/report?period=` | ✅ mock |
-| `GET /api/activity/today` | ✅ mock |
-| `GET /api/activity/history` | ✅ mock |
-| `GET /api/gait/summary` | ✅ mock |
-| `GET /api/gps/routes` | ✅ mock |
-| `POST /api/ingest` | ✅ 打印日志 |
-| `GET /health` | ✅ |
+| `config.py` + `.env` + `llm_config.yml` | ✅ |
+| `database.py` + SQLite | ✅ |
+| `protocol/device_frame.py` + `payloads.py` | ✅ |
+| `services/ingest.py` + `tcp_ingest.py` | ✅ |
+| `services/feature.py` + `services/llm.py` | ✅ |
+| `api/*`（activity/gait/gps/report/ingest） | ✅ |
+| `tests/` + `scripts/simulate_ingest.py` | ✅ |
 
-### 部署模板
+### 部署（ECS 47.76.112.33）
 
-- `deploy/nginx.conf` — Nginx 路径路由
-- `deploy/magic-insoles-api.service` — systemd 单元
+| 项 | 状态 |
+|----|------|
+| `deploy/deploy.ps1` 一键同步 | ✅ 同步 `backend_prod/` |
+| `deploy/server-init.sh` 初始化 | ✅ 已执行 |
+| Nginx `/` `/insoles/` `/api/` `/health` | ✅ |
+| systemd `magic-insoles-api` | ✅ |
+| 外网 TCP 80 | ⏳ 待安全组放行 |
+
+### 已弃用（不再维护）
+
+- `backend/` — FastAPI 测试桩，见 `backend/DEPRECATED.md` 与 ADR-0003
 
 ### 数字大脑
 
-- `.cursor/memories/` 六层记忆文件已初始化
+- `.cursor/memories/` 六层记忆 + ADR-0003
 - `.cursor/tasks/`、`issues/`、`skills/`、`rules/` workflow 就绪
 
 ## 进行中
 
-- **后端完整实施**（当前桩 → config/db → TCP 二进制协议解析 → ingest/feature/llm/report），见 Task Plan
+- ECS 生产环境稳定化（安全组、`.env`、设备 TCP 9000）
+- 硬件/标定 TBD 项确认
 
 ## 待办
 
-### 后端（优先级最高）
+### 生产运维
 
-- [ ] `config.py` + `database.py` + `models/schemas.py`
-- [ ] `protocol/device_frame.py`（CRC16 + TCP stream frame parser）
-- [ ] `protocol/payloads.py`（Force/GPS/Event/DeviceStatus payload parser）
-- [ ] `services/ingest.py`（TCP/HTTP 共用入库服务）
-- [ ] `services/tcp_ingest.py`（设备 TCP server）
-- [ ] `api/deps.py` + `api/ingest.py`（API Key 校验 + HTTP 调试入口）
-- [ ] `services/feature.py`（步频、COP、对称性）
-- [ ] `services/llm.py`（DeepSeek 调用）
-- [ ] `api/report.py`（查询 + 生成）
-- [ ] 替换 `main.py` 测试桩为完整路由与 TCP server lifecycle
-- [ ] `tests/` + `scripts/simulate_ingest.py`
+- [ ] 阿里云安全组入站 TCP 80
+- [ ] 服务器配置 `DEEPSEEK_API_KEY`
+- [ ] 设备接入时安全组 TCP 9000
 
 ### 前端打磨
 
@@ -85,7 +85,7 @@
 - [ ] `fsr_calibrate.py` 多项式拟合 + 导出 `calibration.json`
 - [ ] TinyML 模型采集训练部署（硬件组主导）
 - [ ] STM32 BLE 发送压力帧（固件）
-- [ ] STM32 C serial bridge：按后端-设备 TCP 二进制协议组帧、CRC16 高字节在前、经 LTE/串口透传模块发送
+- [ ] STM32 C serial bridge → 后端 TCP :9000
 
 ### 扩展（时间充裕）
 
@@ -98,9 +98,9 @@
 | 问题 | 影响 | 临时规避 |
 |------|------|----------|
 | TBD-1~5 坐标/标定/UUID 未确认 | 算法精度、真机联调 | 4×4 均匀网格占位 |
-| http IP 下 BLE 不可用 | 真机 `/realtime` 测试 | localhost 开发或配置 HTTPS |
-| `sensorLayout.ts` 坐标占位 | 热力图/COP 方向可能不准 | 待 TBD-1 后替换 |
-| 后端无真实存储 | 报告/步态/GPS 均为 mock | 按 Task Plan 实施 |
+| http IP 下 BLE 不可用 | 真机 `/realtime` 测试 | localhost 或 HTTPS |
+| 安全组未放行 80 | 外网无法访问 | 服务器本机 curl 已验证 |
+| 无 DeepSeek Key | 日报生成失败 | 配置 `.env` |
 | 平衡评估评分算法未定（TBD-BAL） | 评分逻辑可能调整 | 前端本地 COP 椭圆面积方案 |
 
 ## 里程碑记录
@@ -109,6 +109,8 @@
 |------|--------|------|
 | 2026-06 | 硬件打板完成 | STM32 PCB + FSR 鞋垫 32 路 |
 | 2026-06 | 前端骨架完成 | 7 页面 + BLE/viz 模块 + 响应式布局 |
-| 2026-06 | 后端测试桩 | mock 全部 API 供前端联调 |
-| 2026-07-06 | 数字大脑初始化 | doc/TODO/TALK 归档，memories/tasks 就绪 |
-| 2026-07-06 | 设备接入协议定稿 | TCP 二进制帧；Force 30Hz/uint16；IMU 暂不发送；GPS/Status/Event 入库；CRC16 高字节在前 |
+| 2026-06 | 后端测试桩 | mock API（**已弃用**） |
+| 2026-07-06 | 数字大脑初始化 | doc/TODO 归档，memories/tasks 就绪 |
+| 2026-07-06 | 设备接入协议定稿 | TCP 二进制帧；Force 30Hz/uint16 |
+| 2026-07-06 | backend_prod 为唯一后端 | 弃用 `backend/`；ADR-0003 |
+| 2026-07-06 | ECS 首次部署 | deploy.ps1 + nginx + systemd |

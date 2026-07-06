@@ -5,25 +5,38 @@
 
 ## 当前焦点
 
-**后端从测试桩升级为完整实现**——按 `.cursor/tasks/2026-07-06-backend-implementation.md` 实施 config/database → 设备 TCP 二进制协议解析 → ingest → feature → llm → report 全链路。
+**生产后端 `backend_prod/` 为唯一权威实现**——ECS 已部署；`backend/` 测试桩已弃用。后续：设备 TCP 联调、DeepSeek 日报配置、HTTPS/BLE。
 
 ## 近期变更
 
-- 2026-07-06 完成数字大脑初始化：旧 `doc/`、`TODO/`、`ignored/TALK_WITH_AI.md` 归档至 `.cursor/bakup/`，知识沉淀至 `.cursor/memories/`
-- 2026-07-06 后端-设备通讯路线更新：设备侧 C serial bridge + TCP 透传，后端集成二进制帧解析；压力 30Hz/uint16，IMU 采集但暂不发送，新增 Event `0x0501`
-- 2026-06~07 前端多页面骨架完成：7 个页面（Dashboard/Activity/Gait/Gps/Report/Realtime/Balance）+ BLE 模块 + viz 模块 + hooks + 响应式布局（PcSidebar/MobileTabBar）
-- 后端 `main.py` 仍为测试桩，mock 全部 API 端点（activity/gait/gps/report/ingest）
+- 2026-07-06 **弃用 `backend/` 测试桩**，生产与本地均使用 `backend_prod/`（ADR-0003）
+- 2026-07-06 ECS 首次部署：`deploy/deploy.ps1` + `server-init.sh`；Nginx 路径 `/` `/insoles/` `/api/` `/health`
+- 2026-07-06 完成数字大脑初始化：旧 `doc/`、`TODO/` 归档至 `.cursor/bakup/`
+- 2026-06~07 前端 7 页面 + BLE/viz 骨架完成
 
 ## 下一步
 
-- [ ] 按 Task Plan 实施后端完整实现（TCP 协议解析优先，11 步顺序见 task 文档）
-- [ ] 向硬件组确认 TBD-1（FSR 物理坐标映射）和 TBD-5（BLE UUID 最终值）
-- [ ] 向硬件组确认 TBD-BLE（平衡评估 Write Characteristic + 命令格式）
-- [ ] 真机 BLE 测试需 HTTPS 环境（当前 http IP 下不可用）
+- [ ] 阿里云安全组放行 TCP 80（外网访问）；设备接入时放行 TCP 9000
+- [ ] 服务器 `backend_prod/.env` 配置 `DEEPSEEK_API_KEY`（日报生成）
+- [ ] 向硬件组确认 TBD-1（FSR 坐标）、TBD-5（BLE UUID）、TBD-BLE（平衡评估命令）
+- [ ] 真机 BLE 需 HTTPS（当前 http IP 不可用）
 
 ## 进行中的任务 Plan
 
-- [`.cursor/tasks/2026-07-06-backend-implementation.md`](../tasks/2026-07-06-backend-implementation.md)
+- [`.cursor/tasks/2026-07-06-backend-implementation.md`](../tasks/2026-07-06-backend-implementation.md)（实施主体已迁至 `backend_prod/`，桩阶段结束）
+
+## 部署速查
+
+```powershell
+.\deploy\deploy.ps1              # 全量
+.\deploy\deploy.ps1 -BackendOnly # 仅后端
+.\deploy\deploy.ps1 -FrontendOnly
+```
+
+| 环境 | 后端目录 | ECS 路径 |
+|------|----------|----------|
+| 本地 | `backend_prod/` | — |
+| 生产 | `backend_prod/` | `/var/www/magic-insoles/backend_prod/` |
 
 ## 待决问题 / 阻塞
 
@@ -36,3 +49,4 @@
 | TBD-5 | BLE GATT UUID 最终值 | 前端 BLE 连接 | 固件确认 |
 | TBD-BLE | 平衡评估 BLE 命令格式 | `/balance` 页真机联调 | 硬件组 |
 | HTTPS | 真机 Web Bluetooth | `/realtime` 近程演示 | 域名/证书配置 |
+| SG-80 | 安全组 TCP 80 | 公网 HTTP 访问 | 阿里云控制台 |

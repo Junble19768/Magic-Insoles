@@ -67,9 +67,15 @@ magic-insoles/
 ├── firmware/                 【硬件组负责】STM32 底层固件
 │   └── 本人负责嵌入式侧数据处理+通信逻辑
 │
-├── backend/                  【进行中】云端后端（Python FastAPI）
-│   ├── main.py                     当前为测试桩（mock 全部端点）
-│   └── requirements.txt
+├── backend/                  【已弃用】早期 FastAPI 测试桩（mock），见 DEPRECATED.md
+│
+├── backend_prod/             【权威】云端后端（Python FastAPI + SQLite + TCP ingest）
+│   ├── main.py                     生产入口（uvicorn + TCP server lifecycle）
+│   ├── config.py / database.py
+│   ├── protocol/                   设备二进制帧解析
+│   ├── services/                   ingest / feature / llm / tcp_ingest
+│   ├── api/                        REST 路由
+│   └── .env.example                环境变量模板（生产 .env 不提交 git）
 │
 ├── frontend/                 【骨架完成】React + Three.js
 │   └── src/
@@ -93,6 +99,7 @@ magic-insoles/
 | 鉴权 | 固定 API Key（单设备） | 比赛演示从简，无用户系统 | — |
 | 数据库 | SQLite | 单设备演示，无需复杂 DB | — |
 | 前端路由 | `base: '/insoles/'` 子路径部署 | 与外部官网共机 ECS | — |
+| 后端目录 | `backend_prod/` 唯一权威 | 弃用 `backend/` 测试桩 | `decisions/0003-backend-prod-canonical.md` |
 | 热力图 | Three.js ShaderMaterial 顶点颜色 | 手机 Web 实时渲染 | — |
 
 ## 实体功能清单
