@@ -4,7 +4,7 @@ import { fetchActivityHistory, fetchActivityToday } from '@/api/client'
 import { forgetDevice, getSavedDevices } from '@/ble/deviceStore'
 import { getConnectionState } from '@/ble/bleService'
 import { MetricCard } from '@/components/dashboard/MetricCard'
-import { MiniBarChart } from '@/components/dashboard/MiniBarChart'
+import { StepsBarChart } from '@/components/activity/StepsBarChart'
 import { DeviceCard } from '@/components/dashboard/DeviceCard'
 import type { ActivityHistoryDay, ActivitySummary, BleConnectionState, SavedDeviceInfo } from '@/types'
 
@@ -106,7 +106,7 @@ export function DashboardPage(): ReactElement {
 
       <div className="dashboard__chart">
         <h3 className="dashboard__section-title">最近 7 天步数</h3>
-        <MiniBarChart days={pageState.history} />
+        <StepsBarChart days={pageState.history} variant="compact" />
       </div>
 
       <h3 className="dashboard__section-title">设备管理</h3>
