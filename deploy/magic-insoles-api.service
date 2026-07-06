@@ -6,8 +6,9 @@ After=network.target
 Type=simple
 User=www-data
 Group=www-data
-WorkingDirectory=/var/www/magic-insoles/backend
+WorkingDirectory=/var/www/magic-insoles/backend_prod
 Environment=PATH=/var/www/magic-insoles/venv/bin
+EnvironmentFile=-/var/www/magic-insoles/backend_prod/.env
 ExecStart=/var/www/magic-insoles/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=5
