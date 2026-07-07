@@ -242,8 +242,8 @@ def _fill_foot_grid(foot_values: np.ndarray) -> np.ndarray:
     return img
 
 
-def _sensor_label_positions_transposed() -> list[tuple[int, float, float]]:
-    """转置并放大后，各传感器文字中心 (local_idx, x, y)。"""
+def _sensor_label_positions() -> list[tuple[int, float, float]]:
+    """按原始脚底网格（未转置）计算传感器文字中心。"""
     positions: list[tuple[int, float, float]] = []
     for idx, r0, r1, c0, c1 in FOOT_SENSOR_REGIONS:
         cx = (c0 + c1) * 0.5 * FOOT_SCALE_UP
@@ -257,9 +257,9 @@ def build_foot_heatmap(
 ) -> tuple[np.ndarray, np.ndarray]:
     """生成放大后的脚底热力图与用于着色的原始 16 点值。"""
     grid = _fill_foot_grid(foot_values)
-    blurred = _gaussian_blur_2d(grid.T, FOOT_BLUR_SIGMA)
+    blurred = _gaussian_blur_2d(grid, FOOT_BLUR_SIGMA)
     if flip_horizontal:
-        blurred = np.fliplr(blurred)
+        blurred = np.flip(blurred, axis=0)
     scaled = np.repeat(np.repeat(blurred, FOOT_SCALE_UP, axis=0), FOOT_SCALE_UP, axis=1)
     return scaled, foot_values.copy()
 
@@ -271,7 +271,7 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         super().__init__()
         self._left_labels: list[pg.TextItem] = []
         self._right_labels: list[pg.TextItem] = []
-        self._sensor_positions = _sensor_label_positions_transposed()
+        self._sensor_positions = _sensor_label_positions()
 
         self.left_plot = self.addPlot(row=0, col=0, title="左脚")
         self.right_plot = self.addPlot(row=0, col=1, title="右脚")
@@ -279,6 +279,7 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
             plot.setAspectLocked(True)
             plot.hideAxis("left")
             plot.hideAxis("bottom")
+            plot.invertY(True)
 
         self.left_image = pg.ImageItem()
         self.right_image = pg.ImageItem()
@@ -300,10 +301,17 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         left_img, _ = build_foot_heatmap(display_values[:16], flip_horizontal=True)
         right_img, _ = build_foot_heatmap(display_values[16:32], flip_horizontal=False)
 
-        vmax = float(np.nanmax([left_img.max(), right_img.max(), 0.01]))
+        max_data = float(np.nanmax([left_img.max(), right_img.max(), 0.0]))
+        if self._show_pressure:
+            denom = max(max_data, 100.0)
+            left_img = left_img / denom
+            right_img = right_img / denom
+            vmax = 1.0
+        else:
+            vmax = float(np.nanmax([left_img.max(), right_img.max(), 0.01]))
         for image, img_data in ((self.left_image, left_img), (self.right_image, right_img)):
             image.setImage(img_data, autoLevels=False)
-            image.setLevels(0, vmax)
+            image.setLevels((0.0, vmax))
             image.setLookupTable(self._cmap.getLookupTable(0, vmax))
 
         self._update_labels(
@@ -328,16 +336,19 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
             label_pool.append(text)
 
         width = FOOT_GRID_COLS * FOOT_SCALE_UP
+        height = FOOT_GRID_ROWS * FOOT_SCALE_UP
         for i, (local_idx, cx, cy) in enumerate(self._sensor_positions):
             text_item = label_pool[i]
             val = float(foot_values[local_idx])
-            x_pos = (width - cx) if flip_horizontal else cx
+            # x_pos = (width - cx) if flip_horizontal else cx
+            x_pos = cx
+            y_pos = (height - cy) if flip_horizontal else cy
             if self._show_pressure:
                 label = f"{val:.1f}" if np.isfinite(val) else "—"
             else:
                 label = f"{val:.2f}" if np.isfinite(val) else "—"
             text_item.setText(label)
-            text_item.setPos(x_pos, cy)
+            text_item.setPos(y_pos, x_pos)
             text_item.setVisible(True)
 
 
