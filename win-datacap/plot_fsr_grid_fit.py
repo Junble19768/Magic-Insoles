@@ -14,6 +14,10 @@ FSR 标定拟合（逐 CSV 自动选通道）
   Vcc -- FSR -- 节点 -- R_fixed -- GND
   fsr_xx 为 R_fixed 35k 两端电压（节点到地的电压），由：
     R_fsr = R_fixed * (Vcc - V) / V
+
+推拉力计符号：
+  fsr_calibrate 实时端将 force_ch0 乘以 -1 后写入 CSV，使施力方向与标定对比一致。
+  本脚本拟合时使用 abs(force) 作为压力大小 |F|（N），新旧 CSV 均可处理。
 """
 
 from __future__ import annotations
@@ -587,6 +591,7 @@ def main() -> None:
         "vcc_v": VCC,
         "r_fixed_ohm": R_FIXED_OHM,
         "force_col": args.force_col,
+        "force_sign_note": "force_ch0 may be negated by fsr_calibrate; fitting uses |F|",
         "force_bin_n": args.bin_n,
         "force_min_n": args.force_min,
         "force_max_n": args.force_max,
