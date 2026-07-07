@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-FSR 网格标定拟合（4x4）
+FSR 标定拟合（逐 CSV 自动选通道）
 
 目标：
-  - 扫描 win-datacap/record/ 下的多个 CSV（按文件名排序取前 16 个）
-  - 第 i 个 CSV 对应标定点 fsr_{i:02d}（左脚 4x4 网格，共 16 点）
-  - 在每个 CSV 内，筛选施力变化最剧烈阶段的采样点，再分箱聚合
-  - 对该点的 (压力|F|, FSR 阻值 R) 用指数 / 幂函数 / 倒数三种模型各自拟合
-  - 输出 4x4 子图 PNG，每格独立三条拟合曲线
+  - 扫描 record 目录下全部 CSV（按文件名排序）
+  - 每个 CSV 自动选取电压变化幅值最大的 FSR 通道作为标定点
+  - 在有效压力区间内筛选施力变化最剧烈阶段的采样点，再分箱聚合
+  - 对该通道的 (压力|F|, FSR 阻值 R) 用指数 / 幂函数 / 倒数三种模型各自拟合
+  - 输出固定 4 列、行数自适应的子图 PNG，每格独立三条拟合曲线
 
 分压反算：
   Vcc -- FSR -- 节点 -- R_fixed -- GND
@@ -39,8 +39,8 @@ FORCE_MAX_N_DEFAULT = 150.0  # 过滤掉无效/异常值
 DYNAMIC_WINDOW_DEFAULT = 7  # 施力变化率滑动窗口（采样点数）
 DYNAMIC_PERCENTILE_DEFAULT = 50.0  # 保留 |dF/dt| 处于该百分位以上的样本
 
-# 左脚 4x4 标定点：fsr_00 ~ fsr_15
-GRID_POINT_COUNT = 16
+FSR_CHANNEL_COUNT = 32
+PLOT_COLS = 4
 
 
 def voltage_to_fsr_resistance(voltage_v: np.ndarray) -> np.ndarray:
@@ -252,6 +252,51 @@ def load_csv_numeric(csv_path: Path) -> pd.DataFrame:
     return df
 
 
+def select_active_fsr_channel(
+    df: pd.DataFrame,
+    force_col: str,
+    force_min_n: float,
+    force_max_n: float,
+) -> tuple[int, float]:
+    """
+    在有效压力区间内，选取电压变化幅值 (max - min) 最大的 FSR 通道。
+
+    返回 (通道号, 幅值 V)。
+    """
+    if force_col not in df.columns:
+        raise KeyError(f"CSV 缺少列: {force_col}")
+
+    force = pd.to_numeric(df[force_col], errors="coerce").to_numpy()
+    force_abs = np.abs(force)
+    valid = (
+        np.isfinite(force_abs)
+        & (force_abs >= force_min_n)
+        & (force_abs < force_max_n)
+    )
+    if not np.any(valid):
+        raise ValueError("过滤后无有效压力数据，无法选择 FSR 通道")
+
+    best_idx = -1
+    best_swing = -1.0
+    for ch in range(FSR_CHANNEL_COUNT):
+        col = f"fsr_{ch:02d}"
+        if col not in df.columns:
+            continue
+        voltage = pd.to_numeric(df[col], errors="coerce").to_numpy()
+        mask = valid & np.isfinite(voltage)
+        if not np.any(mask):
+            continue
+        v = voltage[mask]
+        swing = float(np.max(v) - np.min(v))
+        if swing > best_swing:
+            best_swing = swing
+            best_idx = ch
+
+    if best_idx < 0:
+        raise ValueError("未找到有效 FSR 通道数据")
+    return best_idx, best_swing
+
+
 def compute_force_and_resistance_for_point(
     df: pd.DataFrame,
     fsr_idx: int,
@@ -297,7 +342,7 @@ def compute_force_and_resistance_for_point(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="FSR 4x4 网格点：三模型拟合并导出 PNG")
+    parser = argparse.ArgumentParser(description="FSR 标定：逐 CSV 自动选通道，三模型拟合并导出 PNG")
     parser.add_argument(
         "--record-dir",
         default=str(Path(__file__).resolve().parent / "record"),
@@ -307,7 +352,12 @@ def main() -> None:
     parser.add_argument("--bin-n", type=float, default=FORCE_BIN_N_DEFAULT, help="压力分箱宽度 N")
     parser.add_argument("--force-min", type=float, default=FORCE_MIN_N_DEFAULT, help="压力最小过滤 N")
     parser.add_argument("--force-max", type=float, default=FORCE_MAX_N_DEFAULT, help="压力最大过滤 N")
-    parser.add_argument("--limit", type=int, default=GRID_POINT_COUNT, help="取前 N 个 CSV 作为 4x4 点")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="仅处理前 N 个 CSV（调试用，默认处理全部）",
+    )
     parser.add_argument(
         "--dynamic-window",
         type=int,
@@ -320,7 +370,7 @@ def main() -> None:
         default=DYNAMIC_PERCENTILE_DEFAULT,
         help="保留 |dF/dt| 高于该百分位的样本（0~100）",
     )
-    parser.add_argument("--output", default="", help="输出 PNG 路径（默认 record/fsr_4x4_fit.png）")
+    parser.add_argument("--output", default="", help="输出 PNG 路径（默认 record/fsr_fit.png）")
     parser.add_argument("--show", action="store_true", help="显示弹窗")
     args = parser.parse_args()
 
@@ -329,23 +379,32 @@ def main() -> None:
     if not csv_files:
         raise FileNotFoundError(f"未找到 CSV: {record_dir}")
 
-    csv_files = csv_files[: args.limit]
-    if len(csv_files) < GRID_POINT_COUNT:
-        print(f"警告：只找到 {len(csv_files)} 个 CSV，仍会按数量绘制（目标 {GRID_POINT_COUNT}）")
+    if args.limit is not None:
+        csv_files = csv_files[: args.limit]
 
-    out_path = Path(args.output) if args.output else (record_dir / "fsr_4x4_fit.png")
+    out_path = Path(args.output) if args.output else (record_dir / "fsr_fit.png")
 
     plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
 
-    fig, axes = plt.subplots(4, 4, figsize=(18, 18), constrained_layout=False)
-    axes_flat = axes.flatten()
+    ncols = PLOT_COLS
+    nrows = max(1, -(-len(csv_files) // ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(18, 4.5 * nrows), constrained_layout=False)
+    axes_flat = np.atleast_1d(axes).flatten()
 
     for grid_idx, csv_path in enumerate(csv_files):
         ax = axes_flat[grid_idx]
-        fsr_idx = grid_idx
+        row, col = divmod(grid_idx, ncols)
+        fsr_idx = -1
         try:
             df = load_csv_numeric(csv_path)
+            fsr_idx, swing_v = select_active_fsr_channel(
+                df,
+                force_col=args.force_col,
+                force_min_n=args.force_min,
+                force_max_n=args.force_max,
+            )
+            print(f"{csv_path.name}: 选中 fsr_{fsr_idx:02d} (ΔV={swing_v:.4f} V)")
             force_abs, resistance = compute_force_and_resistance_for_point(
                 df,
                 fsr_idx=fsr_idx,
@@ -370,27 +429,27 @@ def main() -> None:
                 csv_name=csv_path.name,
             )
 
-            ax.set_xlabel("F(N)" if grid_idx >= 12 else "")
-            ax.set_ylabel("R(kΩ)" if grid_idx % 4 == 0 else "")
+            ax.set_xlabel("F(N)" if row == nrows - 1 else "")
+            ax.set_ylabel("R(kΩ)" if col == 0 else "")
         except Exception as e:
             ax.axis("off")
+            fsr_label = f"fsr_{fsr_idx:02d}" if fsr_idx >= 0 else "fsr_??"
             ax.text(
                 0.5,
                 0.5,
-                f"Fail\nfsr_{fsr_idx:02d}\n{csv_path.name}\n{e}",
+                f"Fail\n{fsr_label}\n{csv_path.name}\n{e}",
                 ha="center",
                 va="center",
                 fontsize=8,
             )
 
-    # 其余子图留空
-    for j in range(len(csv_files), GRID_POINT_COUNT):
+    for j in range(len(csv_files), len(axes_flat)):
         axes_flat[j].axis("off")
 
     fig.suptitle(
-        f"FSR 4x4 Pressure-Resistance Fit (R_fixed={R_FIXED_OHM/1000:.0f}kΩ, Vcc={VCC}V, "
+        f"FSR Pressure-Resistance Fit (R_fixed={R_FIXED_OHM/1000:.0f}kΩ, Vcc={VCC}V, "
         f"bin={args.bin_n}N, dynamic>={args.dynamic_percentile:.0f}%)\n"
-        f"CSV order -> fsr_00..fsr_15 | source_dir={record_dir.name}",
+        f"auto channel per CSV | {len(csv_files)} file(s) | source_dir={record_dir.name}",
         fontsize=14,
     )
     fig.tight_layout(rect=[0, 0.03, 1, 0.96])
