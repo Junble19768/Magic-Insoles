@@ -53,6 +53,7 @@ FORCE_INTERP_MAX_SKEW_S = 2.0
 FORCE_DEDUP_INTERVAL_S = 0.3
 
 FORCE_CHANNEL_NAME = "Ch0_Reg0-1"
+FORCE_SIGN = -1.0
 
 RECORD_DIR = Path(__file__).resolve().parent / "record"
 DEFAULT_CALIB_YAML = RECORD_DIR / "9mm" / "result.yml"
@@ -182,6 +183,7 @@ class CalibrationStore:
 
         p = fit.params
         try:
+            force: float
             if model_key == "exponential":
                 a, b = p["a"], p["b"]
                 if a <= 0 or b == 0:
@@ -189,25 +191,26 @@ class CalibrationStore:
                 ratio = resistance_ohm / a
                 if ratio <= 0:
                     return float("nan")
-                return float(np.log(ratio) / b)
-            if model_key == "power":
+                force = float(np.log(ratio) / b)
+            elif model_key == "power":
                 a, b = p["a"], p["b"]
                 if a <= 0 or b == 0:
                     return float("nan")
                 ratio = resistance_ohm / a
                 if ratio <= 0:
                     return float("nan")
-                return float(np.power(ratio, 1.0 / b))
-            if model_key == "inverse":
+                force = float(np.power(ratio, 1.0 / b))
+            elif model_key == "inverse":
                 a, c = p["a"], p["c"]
                 denom = resistance_ohm - c
                 if abs(denom) < 1e-9:
                     return float("nan")
-                force = a / denom
-                return float(force) if force > 0 else float("nan")
+                force = float(a / denom)
+            else:
+                return float("nan")
+            return force if np.isfinite(force) and force > 0 else float("nan")
         except (KeyError, ValueError, OverflowError):
             return float("nan")
-        return float("nan")
 
     def voltages_to_forces(self, voltages: np.ndarray, model_key: str) -> np.ndarray:
         resistances = self.voltage_to_resistance(voltages)
@@ -258,7 +261,9 @@ def build_foot_heatmap(
     foot_values: np.ndarray, flip_horizontal: bool
 ) -> tuple[np.ndarray, np.ndarray]:
     """生成放大后的脚底热力图与用于着色的原始 16 点值。"""
-    grid = _fill_foot_grid(foot_values)
+    grid = np.nan_to_num(
+        _fill_foot_grid(foot_values), nan=0.0, posinf=0.0, neginf=0.0
+    )
     blurred = _gaussian_blur_2d(grid, FOOT_BLUR_SIGMA)
     if flip_horizontal:
         blurred = np.flip(blurred, axis=0)
@@ -303,14 +308,18 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         left_img, _ = build_foot_heatmap(display_values[:16], flip_horizontal=True)
         right_img, _ = build_foot_heatmap(display_values[16:32], flip_horizontal=False)
 
-        max_data = float(np.nanmax([left_img.max(), right_img.max(), 0.0]))
+        max_data = float(
+            np.nanmax([np.nanmax(left_img), np.nanmax(right_img), 0.0])
+        )
         if self._show_pressure:
             denom = max(max_data, 100.0)
             left_img = left_img / denom
             right_img = right_img / denom
             vmax = 1.0
         else:
-            vmax = float(np.nanmax([left_img.max(), right_img.max(), 0.01]))
+            vmax = float(
+                np.nanmax([np.nanmax(left_img), np.nanmax(right_img), 0.01])
+            )
         for image, img_data in ((self.left_image, left_img), (self.right_image, right_img)):
             image.setImage(img_data, autoLevels=False)
             image.setLevels((0.0, vmax))
@@ -342,7 +351,6 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         for i, (local_idx, cx, cy) in enumerate(self._sensor_positions):
             text_item = label_pool[i]
             val = float(foot_values[local_idx])
-            # x_pos = (width - cx) if flip_horizontal else cx
             x_pos = cx
             y_pos = (height - cy) if flip_horizontal else cy
             if self._show_pressure:
@@ -606,6 +614,14 @@ class DataHub:
             self.force_stamp = stamp
             self.force_connected = True
 
+    def set_fsr_disconnected(self) -> None:
+        with self._lock:
+            self.fsr_connected = False
+
+    def set_force_disconnected(self) -> None:
+        with self._lock:
+            self.force_connected = False
+
     def snapshot(self):
         with self._lock:
             return (
@@ -645,8 +661,7 @@ def _fsr_reader(
                 hub.set_fsr(fsr_data, fsr_stamp)
                 pipeline.enqueue_fsr(fsr_stamp, fsr_data)
         except OSError as e:
-            with hub._lock:
-                hub.fsr_connected = False
+            hub.set_fsr_disconnected()
             print(f"FSR 连接失败，1 秒后重试: {e}")
             time.sleep(1.0)
         finally:
@@ -663,17 +678,19 @@ async def _force_ws_loop(
                 async for msg in ws:
                     if stop_event.is_set():
                         break
-                    payload = json.loads(msg)
-                    values = payload.get("values", [])
-                    if not values:
+                    try:
+                        payload = json.loads(msg)
+                        values = payload.get("values", [])
+                        if not values:
+                            continue
+                        stamp = float(payload.get("timestamp", time.time()))
+                        value = FORCE_SIGN * float(values[0])
+                        hub.set_force([value], stamp)
+                        pipeline.update_force(stamp, value)
+                    except Exception:
                         continue
-                    stamp = float(payload.get("timestamp", time.time()))
-                    value = -float(values[0])
-                    hub.set_force([value], stamp)
-                    pipeline.update_force(stamp, value)
         except Exception as e:
-            with hub._lock:
-                hub.force_connected = False
+            hub.set_force_disconnected()
             print(f"压力 WebSocket 断开，1 秒后重试: {e}")
             await asyncio.sleep(1.0)
 
@@ -925,7 +942,7 @@ class FsrCalibrateApp(QtWidgets.QWidget):
         xs: list[float] = []
         ys: list[float] = []
         for t, v in zip(t_buf, v_buf):
-            if win_start <= t <= win_end:
+            if win_start <= t <= win_end and np.isfinite(v):
                 xs.append(t)
                 ys.append(v)
         return xs, ys
@@ -993,17 +1010,15 @@ class FsrCalibrateApp(QtWidgets.QWidget):
 
         data_changed = False
         if fsr_ok and fsr_stamp != self._last_fsr_stamp:
-            self.adc_t_buf.append(self._rel_time(fsr_stamp))
+            t_rel = self._rel_time(fsr_stamp)
+            self.adc_t_buf.append(t_rel)
             self.adc_v_buf.append(self._fsr_display_value(fsr_data, self.fsr_channel))
+            force_interp = self.pipeline.interp_force(fsr_stamp)
+            if force_interp is not None:
+                self.force_interp_t_buf.append(t_rel)
+                self.force_interp_v_buf.append(force_interp)
+                self._force_interp_now = force_interp
             self._last_fsr_stamp = fsr_stamp
-            data_changed = True
-
-        ui_stamp = time.time()
-        force_interp = self.pipeline.interp_force(ui_stamp)
-        if force_interp is not None:
-            self.force_interp_t_buf.append(self._rel_time(ui_stamp))
-            self.force_interp_v_buf.append(force_interp)
-            self._force_interp_now = force_interp
             data_changed = True
 
         if fsr_ok:
@@ -1013,8 +1028,8 @@ class FsrCalibrateApp(QtWidgets.QWidget):
                 (foot_display[:16], foot_display[16:32]),
             )
 
-        self._update_plot()
         if data_changed:
+            self._update_plot()
             self._ui_fps_count += 1
 
         now = time.monotonic()
@@ -1092,7 +1107,7 @@ def main():
     win = FsrCalibrateApp()
     app.aboutToQuit.connect(win.close)
     win.show()
-    app.exec_()
+    pg.exec()
 
 
 if __name__ == "__main__":
