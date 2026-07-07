@@ -8,6 +8,7 @@ FSR 标定拟合（逐 CSV 自动选通道）
   - 在有效压力区间内筛选施力变化最剧烈阶段的采样点，再分箱聚合
   - 对该通道的 (压力|F|, FSR 阻值 R) 用指数 / 幂函数 / 倒数三种模型各自拟合
   - 输出固定 4 列、行数自适应的子图 PNG，每格独立三条拟合曲线
+  - 额外导出 result.yml（各通道三模型参数、公式字符串、R²）
 
 分压反算：
   Vcc -- FSR -- 节点 -- R_fixed -- GND
@@ -20,10 +21,12 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import yaml
 from scipy.optimize import curve_fit
 
 
@@ -201,17 +204,110 @@ def fit_three_models(force: np.ndarray, resistance_ohm: np.ndarray) -> dict[str,
     return {"指数": exp_res, "幂函数": pow_res, "倒数": inv_res}
 
 
+def format_sigfig(value: float, sigfigs: int = 3) -> str:
+    """将实数格式化为指定有效数字的字符串。"""
+    if not np.isfinite(value):
+        return "nan"
+    return format(float(value), f".{sigfigs}g")
+
+
+def _fit_formula_string(name: str, params: np.ndarray) -> str:
+    """根据模型名与参数生成 R(F) 公式字符串（F 单位 N，R 单位 Ω）。"""
+    if name == "指数":
+        a, b = params
+        return f"R = {format_sigfig(a)} * exp({format_sigfig(b)} * F)"
+    if name == "幂函数":
+        a, b = params
+        return f"R = {format_sigfig(a)} * F^{format_sigfig(b)}"
+    if name == "倒数":
+        a, c = params
+        return f"R = {format_sigfig(a)} / F + {format_sigfig(c)}"
+    raise ValueError(f"未知模型: {name}")
+
+
+def _fit_params_dict(name: str, params: np.ndarray) -> dict[str, float]:
+    if name == "指数":
+        return {"a": float(params[0]), "b": float(params[1])}
+    if name == "幂函数":
+        return {"a": float(params[0]), "b": float(params[1])}
+    if name == "倒数":
+        return {"a": float(params[0]), "c": float(params[1])}
+    raise ValueError(f"未知模型: {name}")
+
+
+_YAML_MODEL_KEYS = {
+    "指数": "exponential",
+    "幂函数": "power",
+    "倒数": "inverse",
+}
+
+
+def fit_result_to_yaml_block(name: str, fit: FitResult) -> dict[str, Any]:
+    """将单个模型拟合结果转为 YAML 条目。"""
+    block: dict[str, Any] = {
+        "ok": fit.ok,
+        "r2": round(fit.r2, 6) if np.isfinite(fit.r2) else None,
+    }
+    if fit.ok and np.all(np.isfinite(fit.params)):
+        block["params"] = _fit_params_dict(name, fit.params)
+        block["formula"] = _fit_formula_string(name, fit.params)
+    else:
+        block["params"] = None
+        block["formula"] = None
+    return block
+
+
+def build_calibration_entry(
+    csv_name: str,
+    fsr_idx: int,
+    swing_v: float | None,
+    fits: dict[str, FitResult] | None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "csv": csv_name,
+        "fsr_channel": fsr_idx if fsr_idx >= 0 else None,
+        "fsr_label": f"fsr_{fsr_idx:02d}" if fsr_idx >= 0 else None,
+    }
+    if swing_v is not None and np.isfinite(swing_v):
+        entry["voltage_swing_v"] = round(swing_v, 6)
+    if error is not None:
+        entry["error"] = error
+        entry["fits"] = None
+        return entry
+
+    entry["fits"] = {
+        _YAML_MODEL_KEYS[name]: fit_result_to_yaml_block(name, fits[name])
+        for name in ["指数", "幂函数", "倒数"]
+    }
+    return entry
+
+
+def write_result_yaml(path: Path, meta: dict[str, Any], entries: list[dict[str, Any]]) -> None:
+    payload = {"meta": meta, "entries": entries}
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(
+            payload,
+            f,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+        )
+
+
 def plot_point_subplot(
     ax: plt.Axes,
     force_bins: np.ndarray,
     res_bins_ohm: np.ndarray,
     fsr_idx: int,
     csv_name: str,
-) -> None:
-    """在单个子图绘制散点 + 三模型拟合曲线。"""
+    fits: dict[str, FitResult] | None = None,
+) -> dict[str, FitResult]:
+    """在单个子图绘制散点 + 三模型拟合曲线，返回拟合结果。"""
     ax.scatter(force_bins, res_bins_ohm / 1000.0, s=10, alpha=0.9, edgecolors="white", linewidths=0.3)
 
-    fits = fit_three_models(force_bins, res_bins_ohm)
+    if fits is None:
+        fits = fit_three_models(force_bins, res_bins_ohm)
     force_line = np.linspace(float(np.nanmin(force_bins)), float(np.nanmax(force_bins)), 250)
 
     colors = {"指数": "#E74C3C", "幂函数": "#3498DB", "倒数": "#27AE60"}
@@ -244,6 +340,7 @@ def plot_point_subplot(
 
     ax.grid(True, alpha=0.25)
     ax.set_title(f"fsr_{fsr_idx:02d}\n{csv_name}", fontsize=9)
+    return fits
 
 
 def load_csv_numeric(csv_path: Path) -> pd.DataFrame:
@@ -371,6 +468,11 @@ def main() -> None:
         help="保留 |dF/dt| 高于该百分位的样本（0~100）",
     )
     parser.add_argument("--output", default="", help="输出 PNG 路径（默认 record/fsr_fit.png）")
+    parser.add_argument(
+        "--yaml-output",
+        default="",
+        help="输出 YAML 路径（默认与 record-dir 同目录下的 result.yml）",
+    )
     parser.add_argument("--show", action="store_true", help="显示弹窗")
     args = parser.parse_args()
 
@@ -383,6 +485,7 @@ def main() -> None:
         csv_files = csv_files[: args.limit]
 
     out_path = Path(args.output) if args.output else (record_dir / "fsr_fit.png")
+    yaml_path = Path(args.yaml_output) if args.yaml_output else (record_dir / "result.yml")
 
     plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
@@ -391,11 +494,13 @@ def main() -> None:
     nrows = max(1, -(-len(csv_files) // ncols))
     fig, axes = plt.subplots(nrows, ncols, figsize=(18, 4.5 * nrows), constrained_layout=False)
     axes_flat = np.atleast_1d(axes).flatten()
+    yaml_entries: list[dict[str, Any]] = []
 
     for grid_idx, csv_path in enumerate(csv_files):
         ax = axes_flat[grid_idx]
         row, col = divmod(grid_idx, ncols)
         fsr_idx = -1
+        swing_v: float | None = None
         try:
             df = load_csv_numeric(csv_path)
             fsr_idx, swing_v = select_active_fsr_channel(
@@ -420,6 +525,7 @@ def main() -> None:
                 force_bin_n=args.bin_n,
             )
             res_for_channel = res_bins[:, 0]
+            fits = fit_three_models(force_bins, res_for_channel)
 
             plot_point_subplot(
                 ax=ax,
@@ -427,6 +533,15 @@ def main() -> None:
                 res_bins_ohm=res_for_channel,
                 fsr_idx=fsr_idx,
                 csv_name=csv_path.name,
+                fits=fits,
+            )
+            yaml_entries.append(
+                build_calibration_entry(
+                    csv_name=csv_path.name,
+                    fsr_idx=fsr_idx,
+                    swing_v=swing_v,
+                    fits=fits,
+                )
             )
 
             ax.set_xlabel("F(N)" if row == nrows - 1 else "")
@@ -442,6 +557,15 @@ def main() -> None:
                 va="center",
                 fontsize=8,
             )
+            yaml_entries.append(
+                build_calibration_entry(
+                    csv_name=csv_path.name,
+                    fsr_idx=fsr_idx,
+                    swing_v=swing_v,
+                    fits=None,
+                    error=str(e),
+                )
+            )
 
     for j in range(len(csv_files), len(axes_flat)):
         axes_flat[j].axis("off")
@@ -455,6 +579,29 @@ def main() -> None:
     fig.tight_layout(rect=[0, 0.03, 1, 0.96])
     fig.savefig(out_path, dpi=180)
     print(f"已保存: {out_path}")
+
+    yaml_meta = {
+        "record_dir": str(record_dir),
+        "source_dir": record_dir.name,
+        "csv_count": len(csv_files),
+        "vcc_v": VCC,
+        "r_fixed_ohm": R_FIXED_OHM,
+        "force_col": args.force_col,
+        "force_bin_n": args.bin_n,
+        "force_min_n": args.force_min,
+        "force_max_n": args.force_max,
+        "dynamic_window": args.dynamic_window,
+        "dynamic_percentile": args.dynamic_percentile,
+        "models": {
+            "exponential": "R = a * exp(b * F)",
+            "power": "R = a * F^b",
+            "inverse": "R = a / F + c",
+        },
+        "units": {"F": "N", "R": "ohm"},
+        "formula_sigfigs": 3,
+    }
+    write_result_yaml(yaml_path, yaml_meta, yaml_entries)
+    print(f"已保存: {yaml_path}")
 
     if args.show:
         plt.show()
