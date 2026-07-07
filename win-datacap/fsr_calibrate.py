@@ -49,6 +49,8 @@ CSV_FLUSH_EVERY_ROWS = 20
 # 压力锚点保留时长；FSR 帧在队列中等待后时间戳可能略早于当前锚点窗口
 FORCE_ANCHOR_WINDOW_S = 60.0
 FORCE_INTERP_MAX_SKEW_S = 2.0
+# 压力值不变时，距上次接受读数超过该间隔仍写入锚点队列
+FORCE_DEDUP_INTERVAL_S = 0.3
 
 FORCE_CHANNEL_NAME = "Ch0_Reg0-1"
 
@@ -467,10 +469,27 @@ class AlignPipeline:
     def update_force(self, stamp: float, value: float) -> None:
         """压力采样在采集线程直接更新锚点，避免 ~kHz 入队淹没 FSR 事件。"""
         with self._lock:
-            if self._anchors and value == self._anchors[-1][1]:
-                return
+            if self._anchors:
+                last_stamp, last_value = self._anchors[-1]
+                if (
+                    value == last_value
+                    and (stamp - last_stamp) < FORCE_DEDUP_INTERVAL_S
+                ):
+                    return
             self._anchors.append((stamp, value))
             self._prune_anchors_locked(stamp)
+
+    def interp_force(self, stamp: float) -> float | None:
+        """在压力锚点队列上对给定时间戳做线性插值。"""
+        with self._lock:
+            anchors = list(self._anchors)
+        if not anchors:
+            return None
+        anchor_t = np.asarray([a[0] for a in anchors], dtype=float)
+        if not can_interp_force(stamp, anchor_t):
+            return None
+        anchor_v = np.asarray([a[1] for a in anchors], dtype=float)
+        return interp_force_at(stamp, anchor_t, anchor_v)
 
     def enqueue_fsr(self, stamp: float, data: np.ndarray) -> None:
         self._queue.put(("fsr", stamp, data.copy()))
@@ -548,14 +567,11 @@ class AlignPipeline:
                 self._anchors.clear()
 
     def _on_fsr(self, stamp: float, data: np.ndarray) -> None:
-        with self._lock:
-            anchors = list(self._anchors)
-            recording = self._recorder.is_active
-        if not can_interp_force(stamp, np.asarray([a[0] for a in anchors])):
+        force_value = self.interp_force(stamp)
+        if force_value is None:
             return
-        anchor_t = np.asarray([a[0] for a in anchors], dtype=float)
-        anchor_v = np.asarray([a[1] for a in anchors], dtype=float)
-        force_value = interp_force_at(stamp, anchor_t, anchor_v)
+        with self._lock:
+            recording = self._recorder.is_active
         if recording:
             self._recorder.write_row(stamp, data, force_value)
 
@@ -695,16 +711,16 @@ class FsrCalibrateApp(QtWidgets.QWidget):
         self.fsr_channel = 0
         self._t_origin: float | None = None
         self._last_fsr_stamp = -1.0
-        self._last_anchor_count = 0
         self._last_status_update = 0.0
         self._ui_fps_count = 0
         self._last_ui_fps_report = time.monotonic()
         self._ui_fps = 0.0
+        self._force_interp_now = float("nan")
 
         self.adc_t_buf: deque[float] = deque(maxlen=HISTORY)
         self.adc_v_buf: deque[float] = deque(maxlen=HISTORY)
-        self.force_t_buf: deque[float] = deque(maxlen=HISTORY)
-        self.force_v_buf: deque[float] = deque(maxlen=HISTORY)
+        self.force_interp_t_buf: deque[float] = deque(maxlen=HISTORY)
+        self.force_interp_v_buf: deque[float] = deque(maxlen=HISTORY)
 
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
@@ -794,14 +810,9 @@ class FsrCalibrateApp(QtWidgets.QWidget):
         )
         self.force_curve = pg.PlotCurveItem(
             pen=pg.mkPen(color=(255, 102, 0), width=2),
-            name="参考压力(实测)",
-        )
-        self.force_interp_curve = pg.PlotCurveItem(
-            pen=pg.mkPen(color=(255, 180, 0), width=2, style=QtCore.Qt.DashLine),
-            name="参考压力(插值@FSR)",
+            name="参考压力(插值)",
         )
         self.force_view.addItem(self.force_curve)
-        self.force_view.addItem(self.force_interp_curve)
 
         def _sync_views():
             self.force_view.setGeometry(self.plot.vb.sceneBoundingRect())
@@ -919,31 +930,6 @@ class FsrCalibrateApp(QtWidgets.QWidget):
                 ys.append(v)
         return xs, ys
 
-    def _interp_force_at_fsr_times(
-        self,
-        fsr_t_buf: deque[float],
-        force_t_buf: deque[float],
-        force_v_buf: deque[float],
-        win_start: float,
-        win_end: float,
-    ) -> tuple[list[float], list[float]]:
-        """在 FSR 时间戳上对推拉力实测值做线性插值。"""
-        fsr_x = [t for t in fsr_t_buf if win_start <= t <= win_end]
-        if len(fsr_x) < 1 or len(force_t_buf) < 2:
-            return [], []
-
-        ft = np.asarray(force_t_buf, dtype=float)
-        fv = np.asarray(force_v_buf, dtype=float)
-        fsr_t = np.asarray(fsr_x, dtype=float)
-        t_min, t_max = float(ft[0]), float(ft[-1])
-        mask = (fsr_t >= t_min) & (fsr_t <= t_max)
-        if not np.any(mask):
-            return [], []
-
-        interp_t = fsr_t[mask]
-        interp_v = np.interp(interp_t, ft, fv)
-        return interp_t.tolist(), interp_v.tolist()
-
     def _apply_y_range(self, viewbox: pg.ViewBox, values: list[float]) -> None:
         """按当前窗口内真实采样值自动缩放 Y 轴。"""
         if not values:
@@ -963,24 +949,13 @@ class FsrCalibrateApp(QtWidgets.QWidget):
             self.adc_t_buf, self.adc_v_buf, win_start, win_end
         )
         force_x, force_y = self._series_for_window(
-            self.force_t_buf, self.force_v_buf, win_start, win_end
-        )
-        interp_x, interp_y = self._interp_force_at_fsr_times(
-            self.adc_t_buf, self.force_t_buf, self.force_v_buf, win_start, win_end
+            self.force_interp_t_buf, self.force_interp_v_buf, win_start, win_end
         )
         self.adc_curve.setData(adc_x, adc_y)
         self.force_curve.setData(force_x, force_y)
-        self.force_interp_curve.setData(interp_x, interp_y)
         self.plot.setXRange(win_start, win_end, padding=0)
         self._apply_y_range(self.plot.vb, adc_y)
-        self._apply_y_range(self.force_view, force_y + interp_y)
-
-    def _sync_force_from_pipeline(self, anchors: list[tuple[float, float]]) -> None:
-        self.force_t_buf.clear()
-        self.force_v_buf.clear()
-        for stamp, value in anchors:
-            self.force_t_buf.append(self._rel_time(stamp))
-            self.force_v_buf.append(value)
+        self._apply_y_range(self.force_view, force_y)
 
     def _on_fsr_changed(self, index: int):
         self.fsr_channel = self.fsr_combo.itemData(index)
@@ -989,12 +964,12 @@ class FsrCalibrateApp(QtWidgets.QWidget):
     def _clear_buffers(self):
         self.adc_t_buf.clear()
         self.adc_v_buf.clear()
-        self.force_t_buf.clear()
-        self.force_v_buf.clear()
+        self.force_interp_t_buf.clear()
+        self.force_interp_v_buf.clear()
         self.pipeline.clear_anchors()
         self._t_origin = None
         self._last_fsr_stamp = -1.0
-        self._last_anchor_count = 0
+        self._force_interp_now = float("nan")
         self.plot.setXRange(0, PLOT_WINDOW_S, padding=0)
         self._update_plot()
 
@@ -1011,10 +986,10 @@ class FsrCalibrateApp(QtWidgets.QWidget):
         print(f"已保存 {count} 行")
 
     def _refresh(self):
-        fsr_data, fsr_stamp, fsr_ok, force_values, force_stamp, force_ok = (
+        fsr_data, fsr_stamp, fsr_ok, _, force_stamp, force_ok = (
             self.hub.snapshot()
         )
-        anchors, record_path, recording, row_count = self.pipeline.snapshot()
+        _, record_path, recording, row_count = self.pipeline.snapshot()
 
         data_changed = False
         if fsr_ok and fsr_stamp != self._last_fsr_stamp:
@@ -1022,9 +997,13 @@ class FsrCalibrateApp(QtWidgets.QWidget):
             self.adc_v_buf.append(self._fsr_display_value(fsr_data, self.fsr_channel))
             self._last_fsr_stamp = fsr_stamp
             data_changed = True
-        if len(anchors) != self._last_anchor_count:
-            self._sync_force_from_pipeline(anchors)
-            self._last_anchor_count = len(anchors)
+
+        ui_stamp = time.time()
+        force_interp = self.pipeline.interp_force(ui_stamp)
+        if force_interp is not None:
+            self.force_interp_t_buf.append(self._rel_time(ui_stamp))
+            self.force_interp_v_buf.append(force_interp)
+            self._force_interp_now = force_interp
             data_changed = True
 
         if fsr_ok:
@@ -1055,13 +1034,9 @@ class FsrCalibrateApp(QtWidgets.QWidget):
                 else float("nan")
             )
             force_now = (
-                self.force_v_buf[-1]
-                if self.force_v_buf
-                else (
-                    force_values[0]
-                    if force_ok and len(force_values) >= 1
-                    else float("nan")
-                )
+                self._force_interp_now
+                if np.isfinite(self._force_interp_now)
+                else float("nan")
             )
             skew_ms = (
                 abs(fsr_stamp - force_stamp) * 1000.0
