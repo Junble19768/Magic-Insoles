@@ -133,6 +133,7 @@ class PlotCanvas(FigureCanvas):
 
     def ploting_callback(self, data):
         self.shape_data_1 = draw_one_foot(data[0:16])
+        self.shape_data_1 = cv2.flip(self.shape_data_1, 1)
         self.shape_data_2 = draw_one_foot(data[16:32])
 
     def plotData(self):
