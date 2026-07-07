@@ -20,12 +20,12 @@ flowchart LR
         Lib["usb_daq_v20\nPython 采集库"]
         Srv["server.py\nTCP :6543"]
         FSrv["force_server.py\nWebSocket :8765"]
-        Cal["fsr_calibrate.py\n标定 UI"]
+        Cal["fsr_calibrate.py\n标定 UI (入口)"]
     end
 
     subgraph clients [客户端]
         Client["client.py\n足底热力图"]
-        Serial["serial_test.py\n力传感器监控"]
+        Serial["example/serial_test.py\n力传感器监控(legacy)"]
     end
 
     FSR --> DAQ --> Lib --> Srv
@@ -54,8 +54,13 @@ win-datacap/
 │   └── example/          # 示例脚本
 ├── server.py             # FSR 数据采集 TCP 服务
 ├── force_server.py       # Modbus 压力传感器 WebSocket 服务
-├── fsr_calibrate.py      # FSR 标定：ADC vs 参考压力 双轴曲线
-├── serial_test.py        # 力传感器独立监控（pyqtgraph）
+├── fsr_calibrate.py      # FSR 标定入口（实现位于 fsr_calibrate/ 包）
+├── fsr_calibrate/        # 标定模块（UI / IO / pipeline / heatmap / calibration）
+├── example/              # 历史 sample 脚本（非主流程）
+│   ├── plot_fsr_fit.py   # 旧版单通道拟合示例
+│   └── serial_test.py    # 旧版串口监控示例
+├── serial_test.py        # Deprecated 包装入口，转发到 example/serial_test.py
+├── plot_fsr_fit.py       # Deprecated 包装入口，转发到 example/plot_fsr_fit.py
 ├── modbus_rtu.py         # Modbus RTU 帧构建 / CRC 校验
 ├── requirements.txt      # 基础依赖
 └── bak/                  # 历史 C++ 实现与旧版 client.py
@@ -175,8 +180,8 @@ python bak/client.py
 **独立监控**（单进程，直连串口）：
 
 ```bash
-# 默认 COM4 @ 9600，可在 serial_test.py 顶部修改
-python serial_test.py
+# legacy sample：默认 COM4 @ 9600，可在 example/serial_test.py 顶部修改
+python example/serial_test.py
 ```
 
 **WebSocket 发布**（供标定等多客户端订阅）：
@@ -236,10 +241,17 @@ python fsr_calibrate.py
 |------|----------|--------|
 | `server.py` | `HOST`, `PORT`, 环境变量 `DAQ_CARD_ID` | `127.0.0.1:6543` |
 | `force_server.py` | `PORT`, `BAUDRATE`, `SLAVE_ADDR` | `COM4`, 9600, `0x01` |
-| `serial_test.py` | 同上 | 同上 |
-| `fsr_calibrate.py` | `FSR_HOST/PORT`, `FORCE_WS_URL` | TCP `:6543`, WS `:8765` |
+| `example/serial_test.py` | 同上 | 同上 |
+| `fsr_calibrate/config.py` | `FSR_HOST/PORT`, `FORCE_WS_URL` | TCP `:6543`, WS `:8765` |
 
-Modbus 寄存器布局与 `serial_test.py` / `force_server.py` 一致：读 13 个保持寄存器，解析 6 路 big-endian float。
+Modbus 寄存器布局与 `example/serial_test.py` / `force_server.py` 一致：读 13 个保持寄存器，解析 6 路 big-endian float。
+
+---
+
+## Legacy Samples
+
+- `example/plot_fsr_fit.py` 与 `example/serial_test.py` 为历史样例，不再作为主流程工具。
+- 根目录同名脚本保留为兼容包装入口，后续建议直接使用 `example/` 下路径。
 
 ---
 
