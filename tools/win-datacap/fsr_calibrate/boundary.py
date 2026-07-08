@@ -50,7 +50,8 @@ def get_boundary_label_positions(
 def build_boundary_foot_heatmap(
     foot_values: np.ndarray,
     *,
-    flip_horizontal: bool,
+    flip_horizontal: bool = False,
+    transpose: bool = False,
     payload_path: Path = DEFAULT_BOUNDARY_PAYLOAD,
     blur_sigma: float = 0.0,
 ) -> np.ndarray:
@@ -61,7 +62,10 @@ def build_boundary_foot_heatmap(
         foot_values,
         blur_sigma=float(blur_sigma),
     )
+    if transpose:
+        field = field.T
     if flip_horizontal:
+        # Mirror in display X after transpose (plot x = row index of field.T).
         field = np.flip(field, axis=0)
     return field
 
