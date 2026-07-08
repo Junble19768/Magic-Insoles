@@ -84,6 +84,18 @@ class Report(Base):
     summary_json = Column(Text, nullable=True)
 
 
+class DailyActivity(Base):
+    """Seeded or manually corrected daily activity summary."""
+
+    __tablename__ = "daily_activity"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(String, nullable=False, unique=True)
+    steps = Column(Integer, nullable=False)
+    active_minutes = Column(Integer, nullable=False)
+    distance_km = Column(Float, nullable=False)
+
+
 # ── Pydantic request/response ──
 
 
