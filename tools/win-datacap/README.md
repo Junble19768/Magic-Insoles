@@ -20,7 +20,9 @@ flowchart LR
         Lib["usb_daq_v20\nPython 采集库"]
         Srv["server.py\nTCP :6543"]
         FSrv["force_server.py\nWebSocket :8765"]
-        Cal["fsr_calibrate.py\n标定 UI (入口)"]
+        Cal["fsr_calibrate.py\n标定采集"]
+        Ref["fsr_calibrate_reference.py\n标定参考"]
+        Viz["fsr_visualize.py\n脚型可视化"]
     end
 
     subgraph clients [客户端]
@@ -32,6 +34,9 @@ flowchart LR
     Force --> FSrv
     Srv --> Cal
     FSrv --> Cal
+    Srv --> Ref
+    FSrv --> Ref
+    Srv --> Viz
     Srv --> Client
     Force --> Serial
 ```
@@ -52,10 +57,12 @@ win-datacap/
 ├── usb_daq_v20/          # Python USB-DAQ 库（CardID 索引、完整 API）
 │   ├── README.md         # 库文档：安装、各平台驱动、API 参考
 │   └── example/          # 示例脚本
-├── server.py             # FSR 数据采集 TCP 服务
+├── fsr_server.py         # FSR 数据采集 TCP 服务（同 README 中的 server.py）
 ├── force_server.py       # Modbus 压力传感器 WebSocket 服务
-├── fsr_calibrate.py      # FSR 标定入口（实现位于 fsr_calibrate/ 包）
-├── fsr_calibrate/        # 标定模块（UI / IO / pipeline / heatmap / calibration）
+├── fsr_calibrate.py      # 标定采集：ADC 折线 + CSV 录制
+├── fsr_calibrate_reference.py  # 标定参考：同轴压力 0–300 N + 残差
+├── fsr_visualize.py      # 脚型可视化：热力图 + COP
+├── fsr_calibrate/        # 标定模块（三个 UI + IO / pipeline / heatmap）
 ├── plot_fsr_grid_fit.py  # 批量拟合 record/*.csv → result.yml + fsr_fit.png
 ├── best_rx.ipynb         # 基于拟合模型的参考电阻(Rx)选型仿真
 ├── record/<批次>/        # 标定原始 CSV + 拟合产物（result.yml / fsr_fit.png）
@@ -200,22 +207,30 @@ python force_server.py
 
 ---
 
-### E. FSR 标定
+### E. FSR 标定与可视化
 
-同时对比 FSR ADC 与 Modbus 参考压力，支持选择 32 路中的任意一路 FSR 及 6 路压力通道。
+三个独立 UI，按需启动（均需先运行 `fsr_server.py`；标定采集与标定参考还需 `force_server.py`）：
+
+| 脚本 | 用途 | 依赖服务 |
+|------|------|----------|
+| `fsr_calibrate.py` | 标定采集：双 Y 轴 ADC vs 参考压力折线 + CSV 录制 | FSR TCP + 压力 WS |
+| `fsr_calibrate_reference.py` | 标定参考：同轴压力对比（Y 固定 0–300 N）+ 残差曲线 | FSR TCP + 压力 WS + `result.yml` |
+| `fsr_visualize.py` | 脚型可视化：ADC/压力热力图 + 重心 (COP) | FSR TCP + `result.yml`（压力模式） |
 
 ```bash
 # 终端 1 — FSR 数据源
-python server.py
+python fsr_server.py
 
-# 终端 2 — 压力 WebSocket 源
+# 终端 2 — 压力 WebSocket 源（标定采集 / 标定参考需要）
 python force_server.py
 
-# 终端 3 — 标定界面
-python fsr_calibrate.py
+# 终端 3 — 按需选一个 UI
+python fsr_calibrate.py              # 标定采集
+python fsr_calibrate_reference.py    # 标定结果参考
+python fsr_visualize.py            # 脚型可视化
 ```
 
-界面提供：FSR 通道下拉（左/右脚 #0–15）、压力通道选择、双 Y 轴实时曲线、清空缓冲。
+标定采集界面：FSR 通道下拉、双 Y 轴实时曲线、开始/停止录制（`record/*.csv`）。
 
 ---
 
@@ -247,8 +262,10 @@ jupyter notebook best_rx.ipynb
 
 ```
 1. 将 Modbus 压力传感器与待标定 FSR 点同步施压
-2. 启动 server.py + force_server.py + fsr_calibrate.py
-3. 在 UI 中选择对应 FSR 通道，记录 ADC–压力关系
+2. 启动 fsr_server.py + force_server.py + fsr_calibrate.py
+3. 在 UI 中选择对应 FSR 通道，录制 ADC–压力 CSV
+4. plot_fsr_grid_fit.py 拟合 → result.yml
+5. fsr_calibrate_reference.py 验证拟合精度；fsr_visualize.py 查看脚型压力/COP
 ```
 
 ---

@@ -21,19 +21,19 @@ R_fsr = R_fixed * (Vcc - V) / V
 
 - FSR 的阻值随压力增大而减小，典型可用**指数 / 幂函数 / 倒数**三种模型近似 `R(F)`。
 
-## 2. 数据采集（在线，`fsr_calibrate/` 应用）
+## 2. 数据采集（在线，`fsr_calibrate/app_capture.py`）
 
 ```mermaid
 flowchart LR
-    daq[USB-DAQ 32路 ADC] -->|TCP :6543| app[fsr_calibrate/app.py 标定 UI]
-    force[Modbus 参考压力传感器] -->|WS :8765| app
-    app -->|AlignPipeline 时间对齐| csv[record/&lt;批次&gt;/*.csv]
+    daq[USB-DAQ 32路 ADC] -->|TCP :6543| cap[fsr_calibrate.py 标定采集]
+    force[Modbus 参考压力传感器] -->|WS :8765| cap
+    cap -->|AlignPipeline 时间对齐| csv[record/*.csv]
 ```
 
 - `fsr_calibrate/pipeline.py::AlignPipeline` 用参考力传感器的时间戳做**插值锚点**，只在 FSR 采样时间落在参考力有效窗口内（`FORCE_ANCHOR_WINDOW_S`/`FORCE_INTERP_MAX_SKEW_S`）时才写入一行 CSV，保证 FSR 电压与参考压力**时间对齐**。
 - 每行 CSV：`timestamp, fsr_00..fsr_31, force_ch0`（`_csv_header`）。
-- 操作流程：对准某一路 FSR 施加连续变化的压力，同时用参考力传感器读数标定，`record/<批次名>/`（如 `9mm`，代表垫材厚度等实验批次标识）下按时间戳生成一个 CSV。
-- 左侧热力图几何来自 `tools/insoles-boundary/reports/render_payload.json` 的 B-spline 传感器区域（不再使用 25×60 矩形网格）。
+- 操作流程：对准某一路 FSR 施加连续变化的压力，同时用参考力传感器读数标定，在 `record/` 下按时间戳生成 CSV。
+- 脚型热力图几何来自 `tools/insoles-boundary/reports/render_payload.json`（由 `fsr_visualize.py` 使用）。
 
 ## 3. 离线拟合（`plot_fsr_grid_fit.py`）
 
@@ -56,7 +56,12 @@ python plot_fsr_grid_fit.py --record-dir record/9mm
 
 ## 4. 标定结果复用（`fsr_calibrate/calibration_store.py`）
 
-`fsr_calibrate/app.py` 实时界面可加载 `result.yml`（默认 `record/9mm/result.yml`，见 `config.py::DEFAULT_CALIB_YAML`），对每路 FSR：`电压 → 电阻（分压公式）→ 力（选定模型的反函数）`，从而把 32 路原始电压实时转换为压力值，供 `heatmap.py` 渲染双脚压力热力图。
+加载 `result.yml`（默认 `record/9mm/result.yml`，见 `config.py::DEFAULT_CALIB_YAML`）后，对每路 FSR：`电压 → 电阻（分压公式）→ 力（选定模型的反函数）`。
+
+| UI 入口 | 模块 | 功能 |
+|---------|------|------|
+| `fsr_calibrate_reference.py` | `app_reference.py` | 单路 FSR 估算压力 vs 参考压力（同轴 0–300 N）+ 残差曲线 |
+| `fsr_visualize.py` | `app_visualize.py` | 32 路热力图（ADC 或压力）+ 重心 (COP) |
 
 ## 5. 参考电阻（Rx）选型分析（`best_rx.ipynb`）
 
@@ -78,9 +83,11 @@ python plot_fsr_grid_fit.py --record-dir record/9mm
 | 文件 | 角色 |
 |------|------|
 | `usb_daq_v20/` | USB-DAQ 采集库（ADC 原始电压读取） |
-| `server.py` | FSR 32 路电压 TCP 服务 `:6543` |
+| `fsr_server.py` | FSR 32 路电压 TCP 服务 `:6543` |
 | `force_server.py` / `modbus_rtu.py` | 参考压力传感器 Modbus → WebSocket `:8765` |
-| `fsr_calibrate/` | 标定 UI：实时对齐采集、CSV 落盘、标定结果加载与热力图 |
+| `fsr_calibrate.py` | 标定采集 UI（ADC 折线 + CSV 录制） |
+| `fsr_calibrate_reference.py` | 标定参考 UI（同轴压力 + 残差） |
+| `fsr_visualize.py` | 脚型可视化 UI（热力图 + COP） |
 | `record/<批次>/*.csv` | 原始标定采样（FSR 32 路电压 + 参考力，逐行对齐） |
 | `plot_fsr_grid_fit.py` | 批量拟合 CSV → `result.yml` + `fsr_fit.png` |
 | `best_rx.ipynb` | 基于拟合模型的 Rx（固定分压电阻）选型仿真 |

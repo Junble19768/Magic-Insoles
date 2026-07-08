@@ -1,11 +1,11 @@
 import pyqtgraph as pg
 
-from .app_capture import FsrCaptureApp
+from .app_reference import FsrReferenceApp
 
 
 def main() -> None:
-    app = pg.mkQApp("FsrCalibrate")
-    window = FsrCaptureApp()
+    app = pg.mkQApp("FsrReference")
+    window = FsrReferenceApp()
     app.aboutToQuit.connect(window.close)
     window.show()
     pg.exec()

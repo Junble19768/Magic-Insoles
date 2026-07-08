@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-FSR 标定客户端入口。
+FSR 标定采集入口（ADC 折线图 + CSV 录制）。
 
-保持 `python fsr_calibrate.py` 原有启动方式不变，实际实现已拆分到
-`fsr_calibrate/` 包中，便于维护。
+另见：
+  fsr_calibrate_reference.py — 标定结果参考（同轴压力 + 残差）
+  fsr_visualize.py           — 脚型热力图 + 重心 (COP)
 """
 
 from fsr_calibrate.main import main
