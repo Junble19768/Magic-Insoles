@@ -54,19 +54,23 @@ export function GaitPage(): ReactElement {
         <>
           <div className="gait-grid">
             <div className="gait-foot">
-              <p className="gait-foot__label">左脚</p>
+              <p className="gait-foot__label">左脚 · 日均压力 + 全天重心轨迹</p>
               <FootAnalysisCanvas
                 pressures={pageState.data.leftFoot.pressures}
                 copPoints={pageState.data.leftFoot.copPoints}
                 side="left"
+                showTrajectoryDensity
+                showTrajectoryFit
               />
             </div>
             <div className="gait-foot">
-              <p className="gait-foot__label">右脚</p>
+              <p className="gait-foot__label">右脚 · 日均压力 + 全天重心轨迹</p>
               <FootAnalysisCanvas
                 pressures={pageState.data.rightFoot.pressures}
                 copPoints={pageState.data.rightFoot.copPoints}
                 side="right"
+                showTrajectoryDensity
+                showTrajectoryFit
               />
             </div>
           </div>

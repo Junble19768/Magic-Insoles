@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useIsPc } from '@/hooks/useMediaQuery'
+import { preloadBoundaryAssets } from '@/viz/boundary'
 import { PcSidebar } from '@/components/layout/PcSidebar'
 import { MobileTabBar } from '@/components/layout/MobileTabBar'
 import { DashboardPage } from '@/pages/DashboardPage'
@@ -12,6 +14,10 @@ import { BalancePage } from '@/pages/BalancePage'
 
 export default function App() {
   const isPc = useIsPc()
+
+  useEffect(() => {
+    void preloadBoundaryAssets()
+  }, [])
 
   return (
     <div className="app-shell">

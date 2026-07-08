@@ -1,6 +1,6 @@
 /**
- * Placeholder sensor layout (TBD-1):
- * 4x4 grid per foot, index 0 = forefoot lateral, index 15 = heel medial.
+ * @deprecated Use boundary centroids from `@/viz/boundary` instead (TBD-1 resolved).
+ * Placeholder sensor layout: 4x4 grid per foot.
  */
 export interface SensorPosition {
   index: number

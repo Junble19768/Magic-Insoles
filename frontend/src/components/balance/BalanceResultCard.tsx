@@ -25,16 +25,18 @@ export function BalanceResultCard({ result, onRetry }: BalanceResultCardProps): 
           <p className="gait-foot__label">左脚平均压力</p>
           <FootAnalysisCanvas
             pressures={result.leftAvgPressures}
-            copPoints={result.leftCopTrajectory.slice(0, 100)}
+            copPoints={result.leftCopTrajectory}
             side="left"
+            showTrajectoryDensity
           />
         </div>
         <div className="gait-foot">
           <p className="gait-foot__label">右脚平均压力</p>
           <FootAnalysisCanvas
             pressures={result.rightAvgPressures}
-            copPoints={result.rightCopTrajectory.slice(0, 100)}
+            copPoints={result.rightCopTrajectory}
             side="right"
+            showTrajectoryDensity
           />
         </div>
       </div>

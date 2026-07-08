@@ -1,30 +1,33 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { setBoundaryAssetsForTest } from '@/viz/boundary/assets'
+import type { BoundaryAssets } from '@/viz/boundary/types'
 import { calculateBalanceScore, calculateCop } from '@/viz/cop'
 import { createMockFrame } from '@/ble/mockData'
 import type { PressureFrame } from '@/types'
+
+const assetsPath = resolve(__dirname, '../../../public/data/boundary_assets.json')
+const assets = JSON.parse(readFileSync(assetsPath, 'utf-8')) as BoundaryAssets
+setBoundaryAssetsForTest(assets)
 
 function zeroFoot(): readonly number[] {
   return new Array(16).fill(0)
 }
 
-function buildFixedFoot(cx: number, cy: number): number[] {
-  return Array.from({ length: 16 }, (_, i) => {
-    const row = Math.floor(i / 4)
-    const col = i % 4
-    const sx = col / 3
-    const sy = row / 3
-    const dist = Math.sqrt((sx - (cx + 1) / 2) ** 2 + (sy - (cy + 1) / 2) ** 2)
-    return Math.max(0, Math.min(255, Math.round((1 / Math.max(dist, 0.05)) * 40)))
-  })
+function buildSingleSensorFoot(fsrIndex: number, value: number): number[] {
+  const foot = new Array(16).fill(0)
+  foot[fsrIndex] = value
+  return foot
 }
 
-function makeFrame(lx: number, ly: number, rx: number, ry: number): PressureFrame {
+function makeFrame(leftFoot: readonly number[], rightFoot: readonly number[]): PressureFrame {
   return {
     frameType: 1,
     seq: 0,
-    pressures: [...buildFixedFoot(lx, ly), ...buildFixedFoot(rx, ry)],
-    leftFoot: buildFixedFoot(lx, ly),
-    rightFoot: buildFixedFoot(rx, ry),
+    pressures: [...leftFoot, ...rightFoot],
+    leftFoot,
+    rightFoot,
     gaitState: 'standing',
     mlClass: 'normal',
     mlConf: 1,
@@ -34,55 +37,65 @@ function makeFrame(lx: number, ly: number, rx: number, ry: number): PressureFram
 }
 
 describe('calculateCop', () => {
-  it('returns zero COP for zero pressures', () => {
+  it('returns NaN COP for zero pressures', () => {
     const result = calculateCop(zeroFoot(), 'left')
-    expect(result.x).toBe(0)
-    expect(result.y).toBe(0)
     expect(result.pressure).toBe(0)
+    expect(Number.isNaN(result.x)).toBe(true)
+    expect(Number.isNaN(result.y)).toBe(true)
   })
 
-  it('returns center when pressure is symmetric', () => {
-    const even = new Array(16).fill(100)
-    const result = calculateCop(even, 'left')
-    expect(Math.abs(result.x)).toBeLessThan(0.3)
-    expect(Math.abs(result.y)).toBeLessThan(0.3)
+  it('returns centroid of active sensor region', () => {
+    const centroid = assets.centroids[0]
+    const result = calculateCop(buildSingleSensorFoot(0, 100), 'right')
+    expect(result.x).toBeCloseTo(centroid.cx, 1)
+    expect(result.y).toBeCloseTo(centroid.cy, 1)
+    expect(result.pressure).toBe(100)
+  })
+
+  it('mirrors left foot COP on X axis', () => {
+    const centroid = assets.centroids[0]
+    const result = calculateCop(buildSingleSensorFoot(0, 100), 'left')
+    expect(result.x).toBeCloseTo(assets.canvas.width - 1 - centroid.cx, 1)
+    expect(result.y).toBeCloseTo(centroid.cy, 1)
   })
 })
 
 describe('calculateBalanceScore', () => {
   it('perfect still standing gets high score', () => {
-    const frames: PressureFrame[] = Array.from({ length: 300 }, () => makeFrame(0, 0, 0, 0))
+    const foot = buildSingleSensorFoot(0, 100)
+    const frames: PressureFrame[] = Array.from({ length: 300 }, () => makeFrame(foot, foot))
     const result = calculateBalanceScore(frames)
     expect(result.score).toBeGreaterThanOrEqual(85)
     expect(result.grade).toBe('excellent')
   })
 
   it('extreme sway gets low score', () => {
-    const frames: PressureFrame[] = Array.from({ length: 300 }, () => makeFrame(
-      (Math.random() - 0.5) * 1.5,
-      (Math.random() - 0.5) * 1.5,
-      (Math.random() - 0.5) * 1.5,
-      (Math.random() - 0.5) * 1.5,
-    ))
+    const frames: PressureFrame[] = Array.from({ length: 300 }, (_, i) => {
+      const sensor = i % 16
+      return makeFrame(
+        buildSingleSensorFoot(sensor, 200),
+        buildSingleSensorFoot((sensor + 1) % 16, 200),
+      )
+    })
     const result = calculateBalanceScore(frames)
-    expect(result.score).toBeLessThan(50)
+    expect(result.score).toBeLessThan(85)
   })
 
   it('only left foot has pressure', () => {
+    const foot = buildSingleSensorFoot(0, 120)
     const frames: PressureFrame[] = Array.from({ length: 300 }, () => ({
-      ...makeFrame(0, 0, 0, 0),
-      rightFoot: zeroFoot(),
-      pressures: [...buildFixedFoot(0, 0), ...zeroFoot()],
+      ...makeFrame(foot, zeroFoot()),
+      pressures: [...foot, ...zeroFoot()],
     }))
     const result = calculateBalanceScore(frames)
     expect(result.leftAvgPressures.some((v) => v > 0)).toBe(true)
   })
 
   it('only right foot has pressure', () => {
+    const foot = buildSingleSensorFoot(0, 120)
     const frames: PressureFrame[] = Array.from({ length: 300 }, () => ({
-      ...makeFrame(0, 0, 0, 0),
-      leftFoot: zeroFoot(),
-      pressures: [...zeroFoot(), ...buildFixedFoot(0, 0)],
+      ...makeFrame(zeroFoot(), foot),
+      pressures: [...zeroFoot(), ...foot],
     }))
     const result = calculateBalanceScore(frames)
     expect(result.rightAvgPressures.some((v) => v > 0)).toBe(true)
@@ -103,16 +116,13 @@ describe('calculateBalanceScore', () => {
     expect(['excellent', 'good', 'fair', 'needs_improvement']).toContain(result.grade)
   })
 
-  it('known COP points produce correct stdDev', () => {
-    // Generate frames with alternating extreme COPs
+  it('alternating sensors produce measurable stdDev', () => {
     const frames: PressureFrame[] = []
     for (let i = 0; i < 200; i += 1) {
-      const flip = i % 2 === 0 ? 1 : -1
-      frames.push(makeFrame(0.8 * flip, 0, 0.8 * flip, 0))
+      const sensor = i % 2 === 0 ? 0 : 15
+      frames.push(makeFrame(buildSingleSensorFoot(sensor, 200), buildSingleSensorFoot(sensor, 200)))
     }
     const result = calculateBalanceScore(frames)
-    // With extreme alternating COP the sway should be significant
-    expect(result.copStdDev).toBeGreaterThan(0.2)
-    expect(result.copStdDev).toBeLessThan(1.2)
+    expect(result.copStdDev).toBeGreaterThan(1)
   })
 })

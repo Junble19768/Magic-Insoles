@@ -1,14 +1,15 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { interpolatePressure, pressureToColor } from '@/viz/interpolation'
-import { getSensorLayout } from '@/viz/sensorLayout'
+import {
+  buildBoundaryFootHeatmap,
+  fieldToImageData,
+  loadBoundaryAssets,
+} from '@/viz/boundary'
 
 interface HeatmapCanvasProps {
   leftFoot: readonly number[]
   rightFoot: readonly number[]
 }
-
-const GRID_SEGMENTS = 48
 
 interface SceneBundle {
   scene: THREE.Scene
@@ -18,37 +19,54 @@ interface SceneBundle {
   rightMesh: THREE.Mesh
 }
 
+function imageDataToTexture(image: ImageData): THREE.DataTexture {
+  const texture = new THREE.DataTexture(
+    image.data,
+    image.width,
+    image.height,
+    THREE.RGBAFormat,
+  )
+  texture.needsUpdate = true
+  texture.flipY = true
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  return texture
+}
+
+function updateFootTexture(
+  mesh: THREE.Mesh,
+  pressures: readonly number[],
+  side: 'left' | 'right',
+): void {
+  const assets = mesh.userData.boundaryAssets
+  if (!assets) {
+    return
+  }
+
+  const heatmap = buildBoundaryFootHeatmap(assets, pressures, side)
+  const image = fieldToImageData(
+    heatmap.field,
+    heatmap.displayWidth,
+    heatmap.displayHeight,
+    heatmap.peak,
+  )
+
+  const oldTexture = mesh.userData.texture as THREE.DataTexture | undefined
+  oldTexture?.dispose()
+
+  const texture = imageDataToTexture(image)
+  mesh.userData.texture = texture
+  ;(mesh.material as THREE.MeshBasicMaterial).map = texture
+  ;(mesh.material as THREE.MeshBasicMaterial).needsUpdate = true
+}
+
 function createFootMesh(side: 'left' | 'right', offsetX: number): THREE.Mesh {
-  const geometry = new THREE.PlaneGeometry(1.6, 2.4, GRID_SEGMENTS, GRID_SEGMENTS)
-  const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })
+  const geometry = new THREE.PlaneGeometry(0.9, 1.35)
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
   const mesh = new THREE.Mesh(geometry, material)
   mesh.position.set(offsetX, 0, 0)
   mesh.userData.side = side
   return mesh
-}
-
-function updateFootColors(mesh: THREE.Mesh, pressures: readonly number[]): void {
-  const geometry = mesh.geometry as THREE.PlaneGeometry
-  const positions = geometry.attributes.position
-  const colors = new Float32Array(positions.count * 3)
-  const side = mesh.userData.side as 'left' | 'right'
-  const layout = getSensorLayout(side)
-
-  for (let index = 0; index < positions.count; index += 1) {
-    const x = positions.getX(index)
-    const y = positions.getY(index)
-    const normalizedX = x / 0.8
-    const normalizedY = y / 1.2
-    const pressure = interpolatePressure(normalizedX, normalizedY, pressures, layout)
-    const [red, green, blue] = pressureToColor(pressure)
-
-    colors[index * 3] = red
-    colors[index * 3 + 1] = green
-    colors[index * 3 + 2] = blue
-  }
-
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-  geometry.attributes.color.needsUpdate = true
 }
 
 export function HeatmapCanvas({ leftFoot, rightFoot }: HeatmapCanvasProps) {
@@ -58,7 +76,7 @@ export function HeatmapCanvas({ leftFoot, rightFoot }: HeatmapCanvasProps) {
   useEffect(() => {
     const container = containerRef.current
     if (!container) {
-      return
+      return undefined
     }
 
     const scene = new THREE.Scene()
@@ -83,15 +101,27 @@ export function HeatmapCanvas({ leftFoot, rightFoot }: HeatmapCanvasProps) {
       if (!bundle) {
         return
       }
-
       bundle.renderer.setSize(container.clientWidth, container.clientHeight)
       bundle.camera.updateProjectionMatrix()
+      bundle.renderer.render(bundle.scene, bundle.camera)
     }
 
     window.addEventListener('resize', handleResize)
 
+    void loadBoundaryAssets().then((assets) => {
+      leftMesh.userData.boundaryAssets = assets
+      rightMesh.userData.boundaryAssets = assets
+      updateFootTexture(leftMesh, leftFoot, 'left')
+      updateFootTexture(rightMesh, rightFoot, 'right')
+      renderer.render(scene, camera)
+    })
+
     return () => {
       window.removeEventListener('resize', handleResize)
+      const leftTexture = leftMesh.userData.texture as THREE.DataTexture | undefined
+      const rightTexture = rightMesh.userData.texture as THREE.DataTexture | undefined
+      leftTexture?.dispose()
+      rightTexture?.dispose()
       renderer.dispose()
       leftMesh.geometry.dispose()
       rightMesh.geometry.dispose()
@@ -107,9 +137,12 @@ export function HeatmapCanvas({ leftFoot, rightFoot }: HeatmapCanvasProps) {
     if (!bundle) {
       return
     }
+    if (!bundle.leftMesh.userData.boundaryAssets) {
+      return
+    }
 
-    updateFootColors(bundle.leftMesh, leftFoot)
-    updateFootColors(bundle.rightMesh, rightFoot)
+    updateFootTexture(bundle.leftMesh, leftFoot, 'left')
+    updateFootTexture(bundle.rightMesh, rightFoot, 'right')
     bundle.renderer.render(bundle.scene, bundle.camera)
   }, [leftFoot, rightFoot])
 
