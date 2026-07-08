@@ -9,6 +9,7 @@
 
 ## 近期变更
 
+- 2026-07-09 **前端 boundary 脚型 + 步态轨迹密度**：`FootAnalysisCanvas`/`HeatmapCanvas` 改用 `insoles-boundary` 预导出 masks；步态页叠加全天 COP splat + SVD 拟合线；`backend_prod/services/feature.py` COP 坐标对齐。见 `.cursor/tasks/2026-07-09-boundary-gait-viz.md`
 - 2026-07-09 **fsr_calibrate 左脚热力图坐标**：修复「字对图错」——图像须 **先 transpose 再 flip(axis=0)**，标签 `(x_max-cx, cy)`；勿先 flip 再 transpose。见 ADR-0004、`fsr_calibrate/boundary.py` + `heatmap.py`
 - 2026-07-09 **win-datacap 迁入 `tools/`**：`win-datacap/` → `tools/win-datacap/`（`git mv` 保留历史，54 个已跟踪文件 + `best_rx.ipynb`）；新增 `tools/win-datacap/docs/CALIBRATION_PIPELINE.md` 串联「采集→标定→拟合→result.yml→Rx选型」全流程。见 `.cursor/tasks/2026-07-09-reorganize-win-datacap.md`
 - 2026-07-09 **insoles-boundary 同步修正版 pipeline**：从 `ignored/insoles-boundary` 移植 OBB CW90 代码；修正 masks 重跑后 `render_payload.json` 画布 **132×324**（原 132×327）；region 1/2 几何独立。见 `tools/insoles-boundary/docs/tasks/2026-07-09-mask-fix-rerun.md`
