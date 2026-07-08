@@ -5,15 +5,31 @@
 
 ## 已完成
 
-### win-datacap 标定工具（Windows PC）
+### win-datacap 标定工具（`tools/win-datacap/`，Windows PC）
+
+USB 采集卡（32 路 FSR）+ Modbus 参考压力传感器的采集、标定、拟合工具集。2026-07-09 从仓库根目录整理迁入 `tools/`，与 `insoles-boundary` 并列；完整流程见 [`tools/win-datacap/docs/CALIBRATION_PIPELINE.md`](../../tools/win-datacap/docs/CALIBRATION_PIPELINE.md)。
 
 | 文件 | 功能 | 状态 |
 |------|------|------|
 | `server.py` | USB-DAQ 32 路 FSR → TCP :6543 | ✅ 完整可用 |
 | `force_server.py` | Modbus 压力传感器 → WebSocket :8765 | ✅ 完整可用 |
-| `fsr_calibrate.py` | ADC vs 参考压力双轴对比 GUI | ✅ 可用，待拟合导出 |
+| `fsr_calibrate.py`（`fsr_calibrate/`） | ADC vs 参考压力实时 UI + 时间对齐 CSV 录制 | ✅ 完整可用 |
+| `plot_fsr_grid_fit.py` | 批量拟合 `record/*.csv` → `result.yml`（指数/幂/倒数三模型 + R²） | ✅ 完整可用 |
+| `best_rx.ipynb` | 基于幂函数拟合仿真 12-bit ADC 量化误差，选型参考电阻 Rx | ✅ 可用（手工改参数重跑） |
 | `modbus_rtu.py` | Modbus RTU 帧构建/CRC | ✅ 完整可用 |
 | `usb_daq_v20/` | USB-DAQ Python 库 | ✅ 完整可用 |
+
+### 鞋垫边界拟合工具（`tools/insoles-boundary/`）
+
+鞋垫照片手动抠图 → 二值掩码 → 周期 B-spline 参数化 → 导出可携带 `render_payload.json`（17 区域）。原为 `ignored/` 下独立 git 仓库，2026-07-09 整理留存到父仓库并追踪。
+
+| 内容 | 状态 |
+|------|------|
+| 核心算法库 `src/insoles/`（uniform/adaptive B-spline、边界指标、OBB/坐标变换、payload 导出） | ✅ |
+| 流水线脚本 `scripts/`（缩放/拟合/导出/重绘/重映射） | ✅ |
+| 可复现数据集（`masks*/`、`contours*/`、`reports/`，含 `render_payload.json`） | ✅ 已追踪 |
+| 处理过程文档 `docs/PIPELINE.md` + 记忆/任务/讨论快照 | ✅ |
+| 原始大文件（`insoles.psd`/照片/验证图） | 保留在 `ignored/insoles-boundary/ignored/`（不入 git） |
 
 ### 前端（React + Three.js）
 
@@ -82,7 +98,8 @@
 
 ### 标定与嵌入式
 
-- [ ] `fsr_calibrate.py` 多项式拟合 + 导出 `calibration.json`
+- [x] ~~`fsr_calibrate.py` 拟合 + 导出标定参数~~ 已由 `plot_fsr_grid_fit.py` 实现（三模型拟合 → `result.yml`，见 `tools/win-datacap/docs/CALIBRATION_PIPELINE.md`）
+- [ ] `best_rx.ipynb`：Rx 从手工改参数升级为网格搜索，自动输出「最优 Rx vs 最大相对误差」表格
 - [ ] TinyML 模型采集训练部署（硬件组主导）
 - [ ] STM32 BLE 发送压力帧（固件）
 - [ ] STM32 C serial bridge → 后端 TCP :9000
@@ -114,3 +131,5 @@
 | 2026-07-06 | 设备接入协议定稿 | TCP 二进制帧；Force 30Hz/uint16 |
 | 2026-07-06 | backend_prod 为唯一后端 | 弃用 `backend/`；ADR-0003 |
 | 2026-07-06 | ECS 首次部署 | deploy.ps1 + nginx + systemd |
+| 2026-07-09 | 鞋垫边界拟合工具留存 | `tools/insoles-boundary/` 代码+数据+文档入 git；见 task 2026-07-09-preserve-insoles-boundary |
+| 2026-07-09 | win-datacap 迁入 tools/ | `win-datacap/` → `tools/win-datacap/`（git mv 保留历史）；新增 `docs/CALIBRATION_PIPELINE.md` 说明标定/拟合/Rx选型；见 task 2026-07-09-reorganize-win-datacap |

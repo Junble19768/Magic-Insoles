@@ -9,6 +9,8 @@
 
 ## 近期变更
 
+- 2026-07-09 **win-datacap 迁入 `tools/`**：`win-datacap/` → `tools/win-datacap/`（`git mv` 保留历史，54 个已跟踪文件 + `best_rx.ipynb`）；新增 `tools/win-datacap/docs/CALIBRATION_PIPELINE.md` 串联「采集→标定→拟合→result.yml→Rx选型」全流程。见 `.cursor/tasks/2026-07-09-reorganize-win-datacap.md`
+- 2026-07-09 **鞋垫边界拟合工具留存**：`ignored/insoles-boundary/`（独立 git、原不被父仓库追踪）的代码/可复现数据/处理文档整理到 `tools/insoles-boundary/` 并入 git；原始大文件保留在 `ignored/`。见 `.cursor/tasks/2026-07-09-preserve-insoles-boundary.md`
 - 2026-07-06 **弃用 `backend/` 测试桩**，生产与本地均使用 `backend_prod/`（ADR-0003）
 - 2026-07-06 ECS 首次部署：`deploy/deploy.ps1` + `server-init.sh`；Nginx 路径 `/` `/insoles/` `/api/` `/health`
 - 2026-07-06 完成数字大脑初始化：旧 `doc/`、`TODO/` 归档至 `.cursor/bakup/`

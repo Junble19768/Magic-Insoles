@@ -15,7 +15,7 @@
 | 数据库 | SQLite（演示阶段） | 单设备 |
 | LLM | DeepSeek API | `https://api.deepseek.com` |
 | 嵌入式 | STM32 + TinyML（X-CUBE-AI / TFLite Micro 待确认） | 硬件组训练部署 |
-| 标定工具 | Python（win-datacap） | Windows USB-DAQ |
+| 标定工具 | Python（tools/win-datacap） | Windows USB-DAQ |
 | 用户系统 | 无（固定 API Key） | `dev-magic-insoles-key` |
 
 ## 本地开发
@@ -248,17 +248,19 @@ cd frontend && npm run build
 - API Key 写入固件 config，与前端 `VITE_API_KEY` 一致
 - 正式对外推广需域名 + ICP 备案
 
-## win-datacap（标定工具，已有）
+## tools/win-datacap（标定工具，已有）
 
 | 文件 | 功能 | 状态 |
 |------|------|------|
 | `server.py` | USB-DAQ 32 路 FSR → TCP :6543 | 完整可用 |
 | `force_server.py` | Modbus 压力传感器 → WebSocket :8765 | 完整可用 |
-| `fsr_calibrate.py` | ADC vs 参考压力双轴对比 GUI | 待补充拟合导出 |
+| `fsr_calibrate.py`（`fsr_calibrate/`） | ADC vs 参考压力实时 UI + CSV 录制 | 完整可用 |
+| `plot_fsr_grid_fit.py` | 批量拟合 CSV → `result.yml`（指数/幂/倒数三模型） | 完整可用 |
+| `best_rx.ipynb` | 基于拟合模型仿真选型参考电阻 Rx | 可用（手工改参数） |
 | `modbus_rtu.py` | Modbus RTU 帧构建/CRC | 完整可用 |
 | `usb_daq_v20/` | USB-DAQ Python 库 | 完整可用 |
 
-`server.py` 扫描：6 行（DO 选通）× 8 列（ADC 采样）= 48 次读取，映射到 32 路有效通道。
+`server.py` 扫描：6 行（DO 选通）× 8 列（ADC 采样）= 48 次读取，映射到 32 路有效通道。完整标定/拟合/Rx选型流程见 [`tools/win-datacap/docs/CALIBRATION_PIPELINE.md`](../../tools/win-datacap/docs/CALIBRATION_PIPELINE.md)。
 
 ## 待确认项（TBD）
 

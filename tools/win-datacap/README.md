@@ -56,6 +56,10 @@ win-datacap/
 ├── force_server.py       # Modbus 压力传感器 WebSocket 服务
 ├── fsr_calibrate.py      # FSR 标定入口（实现位于 fsr_calibrate/ 包）
 ├── fsr_calibrate/        # 标定模块（UI / IO / pipeline / heatmap / calibration）
+├── plot_fsr_grid_fit.py  # 批量拟合 record/*.csv → result.yml + fsr_fit.png
+├── best_rx.ipynb         # 基于拟合模型的参考电阻(Rx)选型仿真
+├── record/<批次>/        # 标定原始 CSV + 拟合产物（result.yml / fsr_fit.png）
+├── docs/CALIBRATION_PIPELINE.md  # 标定/拟合/Rx选型全流程说明
 ├── example/              # 历史 sample 脚本（非主流程）
 │   ├── plot_fsr_fit.py   # 旧版单通道拟合示例
 │   └── serial_test.py    # 旧版串口监控示例
@@ -215,6 +219,20 @@ python fsr_calibrate.py
 
 ---
 
+### F. 离线拟合与参考电阻（Rx）选型
+
+标定 UI 录制的 CSV（`record/<批次>/*.csv`）需要离线批量拟合，导出可被实时界面复用的 `result.yml`；`best_rx.ipynb` 则基于拟合结果反过来评估/选型分压电阻。完整流程、公式与算法细节见 **[docs/CALIBRATION_PIPELINE.md](docs/CALIBRATION_PIPELINE.md)**。
+
+```bash
+# 批量拟合 record/9mm 下全部 CSV，导出 result.yml + fsr_fit.png
+python plot_fsr_grid_fit.py --record-dir record/9mm
+
+# 基于 result.yml 中的幂函数拟合参数，仿真不同 Rx 下的 12-bit ADC 量化误差
+jupyter notebook best_rx.ipynb
+```
+
+---
+
 ## 典型工作流
 
 ### 日常采集 + 可视化
@@ -290,3 +308,4 @@ Modbus 寄存器布局与 `example/serial_test.py` / `force_server.py` 一致：
 ## 相关文档
 
 - [usb_daq_v20/README.md](usb_daq_v20/README.md) — 采集库 API、Linux/macOS/Windows 驱动、示例脚本
+- [docs/CALIBRATION_PIPELINE.md](docs/CALIBRATION_PIPELINE.md) — FSR 标定、离线拟合与参考电阻（Rx）选型全流程

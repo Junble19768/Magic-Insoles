@@ -57,12 +57,16 @@ flowchart TB
 
 ```
 magic-insoles/
-├── win-datacap/              【已有】开发/标定工具（Windows PC，Python）
-│   ├── server.py                 USB-DAQ FSR TCP 服务（32路 → TCP :6543）
-│   ├── force_server.py           Modbus 压力传感器 WebSocket（WS :8765）
-│   ├── fsr_calibrate.py          ADC-压力标定对比 GUI（待补充拟合导出）
-│   ├── modbus_rtu.py             Modbus RTU 帧构建/CRC
-│   └── usb_daq_v20/              USB-DAQ Python 库
+├── tools/                    独立工具集（各工具自含 README/依赖，按需运行）
+│   ├── win-datacap/              开发/标定工具（Windows PC，Python）
+│   │   ├── server.py                 USB-DAQ FSR TCP 服务（32路 → TCP :6543）
+│   │   ├── force_server.py           Modbus 压力传感器 WebSocket（WS :8765）
+│   │   ├── fsr_calibrate.py          ADC-压力标定对比 GUI（实时可视化+CSV录制）
+│   │   ├── plot_fsr_grid_fit.py      批量拟合 record/*.csv → result.yml
+│   │   ├── best_rx.ipynb             基于拟合模型的参考电阻(Rx)选型仿真
+│   │   ├── modbus_rtu.py             Modbus RTU 帧构建/CRC
+│   │   └── usb_daq_v20/              USB-DAQ Python 库
+│   └── insoles-boundary/         鞋垫掩码→B-spline边界拟合工具（见其 README/docs/PIPELINE.md）
 │
 ├── firmware/                 【硬件组负责】STM32 底层固件
 │   └── 本人负责嵌入式侧数据处理+通信逻辑
