@@ -154,7 +154,7 @@ export DAQ_CARD_ID=0x00BC614E # Linux / macOS
 从 USB-DAQ 扫描 32 路 FSR，经 TCP 向外推送。
 
 ```bash
-python server.py
+python fsr_server.py
 ```
 
 - 监听：`127.0.0.1:6543`
@@ -167,8 +167,38 @@ python server.py
 
 ```bash
 set DAQ_CARD_ID=0x12345678
-python server.py
+python fsr_server.py
 ```
+
+#### 从 CSV 回放（无需 USB-DAQ）
+
+将标定采集录制的 CSV（`timestamp, fsr_00..fsr_31, ...`）按原 TCP 协议回放，供 `fsr_visualize.py` 等下游 GUI 离线调试：
+
+```bash
+# 按 CSV 原始时间间隔回放
+python fsr_server.py --playback record/9mm/20260706_212154.csv
+
+# 2 倍速
+python fsr_server.py --playback record/9mm/20260706_212154.csv --speed 2
+
+# 尽快推送（不 sleep，便于快速浏览）
+python fsr_server.py --playback record/9mm/20260706_212154.csv --fast
+
+# 循环播放
+python fsr_server.py --playback record/9mm/20260706_212154.csv --loop
+```
+
+与脚型可视化联调：
+
+```bash
+# 终端 1 — CSV 回放
+python fsr_server.py --playback record/9mm/20260706_212154.csv --fast
+
+# 终端 2 — 热力图
+python fsr_visualize.py
+```
+
+回放时 TCP 帧内时间戳取自 CSV 的 `timestamp` 列（非 `time.time()`）。**限制**：仅回放 FSR；标定采集/参考 UI 的参考压力仍依赖 `force_server.py`，不能仅凭 FSR 回放完整复现双轴标定场景。
 
 ---
 
