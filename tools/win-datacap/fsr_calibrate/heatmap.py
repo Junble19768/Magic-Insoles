@@ -1,9 +1,25 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui
 
 from .boundary import build_boundary_foot_heatmap, get_boundary_label_positions
 from .config import BOUNDARY_BLUR_SIGMA
+from .cop import FootCop, compute_foot_cop
+
+_COP_CROSS_HALF_LEN = 5.0
+_COP_LABEL_OFFSET = (8.0, 8.0)
+
+
+@dataclass
+class _CopCrosshair:
+    h_core: pg.PlotDataItem
+    v_core: pg.PlotDataItem
+    h_outline: pg.PlotDataItem
+    v_outline: pg.PlotDataItem
 
 
 class FootPressurePanel(pg.GraphicsLayoutWidget):
@@ -38,8 +54,18 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         self._cmap = pg.colormap.get("viridis") or pg.colormap.get("CET-L9")
         self._show_pressure = False
 
+        self._left_cop_cross = self._create_crosshair(self.left_plot)
+        self._right_cop_cross = self._create_crosshair(self.right_plot)
+        self._left_cop_label = self._create_cop_label(self.left_plot)
+        self._right_cop_label = self._create_cop_label(self.right_plot)
+        self._hide_cop_overlay(self._left_cop_cross, self._left_cop_label)
+        self._hide_cop_overlay(self._right_cop_cross, self._right_cop_label)
+
     def set_value_mode(self, show_pressure: bool) -> None:
         self._show_pressure = show_pressure
+        if not show_pressure:
+            self._hide_cop_overlay(self._left_cop_cross, self._left_cop_label)
+            self._hide_cop_overlay(self._right_cop_cross, self._right_cop_label)
 
     def update_feet(self, display_values: np.ndarray, raw_foot_values: tuple[np.ndarray, np.ndarray]) -> None:
         left_raw, right_raw = raw_foot_values
@@ -74,6 +100,80 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
 
         self._update_labels(self.left_plot, self._left_labels, left_raw, foot="left")
         self._update_labels(self.right_plot, self._right_labels, right_raw, foot="right")
+        self._update_cop_overlays(left_raw, right_raw)
+
+    @staticmethod
+    def _create_crosshair(plot: pg.PlotItem) -> _CopCrosshair:
+        outline_pen = pg.mkPen((255, 255, 200), width=3)
+        core_pen = pg.mkPen((220, 40, 40), width=1.5)
+        cross = _CopCrosshair(
+            h_core=pg.PlotDataItem(pen=core_pen),
+            v_core=pg.PlotDataItem(pen=core_pen),
+            h_outline=pg.PlotDataItem(pen=outline_pen),
+            v_outline=pg.PlotDataItem(pen=outline_pen),
+        )
+        for item in (cross.h_outline, cross.v_outline, cross.h_core, cross.v_core):
+            plot.addItem(item)
+        cross.h_outline.setZValue(9)
+        cross.v_outline.setZValue(9)
+        cross.h_core.setZValue(10)
+        cross.v_core.setZValue(10)
+        return cross
+
+    @staticmethod
+    def _create_cop_label(plot: pg.PlotItem) -> pg.TextItem:
+        label = pg.TextItem(anchor=(0.0, 0.0), color=(255, 240, 180))
+        label.setFont(QtGui.QFont("Arial", 9, QtGui.QFont.Bold))
+        plot.addItem(label)
+        label.setZValue(11)
+        return label
+
+    @staticmethod
+    def _hide_cop_overlay(cross: _CopCrosshair, label: pg.TextItem) -> None:
+        for item in (cross.h_core, cross.v_core, cross.h_outline, cross.v_outline, label):
+            item.setVisible(False)
+
+    @staticmethod
+    def _set_crosshair_pos(cross: _CopCrosshair, x: float, y: float) -> None:
+        half = _COP_CROSS_HALF_LEN
+        cross.h_core.setData([x - half, x + half], [y, y])
+        cross.v_core.setData([x, x], [y - half, y + half])
+        cross.h_outline.setData([x - half, x + half], [y, y])
+        cross.v_outline.setData([x, x], [y - half, y + half])
+
+    def _update_cop_overlays(self, left_raw: np.ndarray, right_raw: np.ndarray) -> None:
+        if not self._show_pressure:
+            self._hide_cop_overlay(self._left_cop_cross, self._left_cop_label)
+            self._hide_cop_overlay(self._right_cop_cross, self._right_cop_label)
+            return
+
+        left_cop = compute_foot_cop(
+            left_raw,
+            self._sensor_positions,
+            mirror_x=self._left_label_x_max,
+        )
+        right_cop = compute_foot_cop(right_raw, self._sensor_positions)
+        self._apply_cop_overlay(self._left_cop_cross, self._left_cop_label, left_cop)
+        self._apply_cop_overlay(self._right_cop_cross, self._right_cop_label, right_cop)
+
+    def _apply_cop_overlay(
+        self,
+        cross: _CopCrosshair,
+        label: pg.TextItem,
+        cop: FootCop,
+    ) -> None:
+        if cop.total_pressure <= 0.0 or not np.isfinite(cop.x) or not np.isfinite(cop.y):
+            self._hide_cop_overlay(cross, label)
+            return
+
+        self._set_crosshair_pos(cross, cop.x, cop.y)
+        for item in (cross.h_core, cross.v_core, cross.h_outline, cross.v_outline):
+            item.setVisible(True)
+
+        offset_x, offset_y = _COP_LABEL_OFFSET
+        label.setText(f"Σ {cop.total_pressure:.1f} N")
+        label.setPos(cop.x + offset_x, cop.y + offset_y)
+        label.setVisible(True)
 
     def _update_labels(
         self,
