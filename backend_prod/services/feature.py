@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -11,13 +13,37 @@ from sqlalchemy.orm import Session
 from database import DailyFeatures, DeviceEvent, ForceBatch, day_bounds
 from protocol.payloads import EVENT_ID_HEARTBEAT
 
-# 4x4 uniform grid placeholder (TBD-1/TBD-2)
-_SENSOR_COORDS: list[tuple[float, float]] = []
-for row in range(4):
-    for col in range(4):
-        x = -0.75 + col * 0.5
-        y = -0.75 + row * 0.5
-        _SENSOR_COORDS.append((x, y))
+_BOUNDARY_ASSETS_PATH = (
+    Path(__file__).resolve().parents[1] / "data" / "boundary_assets.json"
+)
+
+
+@lru_cache(maxsize=1)
+def _load_boundary_centroids() -> list[tuple[int, float, float]]:
+    """Return [(fsr_index, cx, cy), ...] from exported boundary assets."""
+    with _BOUNDARY_ASSETS_PATH.open(encoding="utf-8") as handle:
+        payload: dict[str, Any] = json.load(handle)
+    centroids = payload.get("centroids", [])
+    return [
+        (int(item["fsrIndex"]), float(item["cx"]), float(item["cy"]))
+        for item in centroids
+    ]
+
+
+@lru_cache(maxsize=1)
+def _canvas_width() -> int:
+    with _BOUNDARY_ASSETS_PATH.open(encoding="utf-8") as handle:
+        payload: dict[str, Any] = json.load(handle)
+    return int(payload["canvas"]["width"])
+
+
+def _cop_plot_coords(
+    cx: float, cy: float, foot_offset: int, canvas_width: int
+) -> tuple[float, float]:
+    """Map centroid to plot coordinates (left foot mirrored on X)."""
+    if foot_offset == 0:
+        return canvas_width - 1 - cx, cy
+    return cx, cy
 
 
 def compute_daily_features(date_str: str, db: Session) -> DailyFeatures:
@@ -63,7 +89,9 @@ def compute_daily_features(date_str: str, db: Session) -> DailyFeatures:
 def compute_cop_points(
     batches: list[ForceBatch], foot_offset: int
 ) -> list[dict[str, float]]:
-    """Return COP trajectory points for one foot (16 sensors)."""
+    """Return COP trajectory points for one foot (16 sensors) in plot coordinates."""
+    centroids = _load_boundary_centroids()
+    canvas_width = _canvas_width()
     points: list[dict[str, float]] = []
     for batch in batches:
         samples = json.loads(batch.samples_json)
@@ -74,15 +102,22 @@ def compute_cop_points(
         total = sum(foot_values)
         if total <= 0:
             continue
-        cx = 0.0
-        cy = 0.0
-        for index, value in enumerate(foot_values):
-            x, y = _SENSOR_COORDS[index]
-            cx += x * value
-            cy += y * value
-        cx /= total
-        cy /= total
-        points.append({"x": round(cx, 4), "y": round(cy, 4), "pressure": total})
+        weighted_x = 0.0
+        weighted_y = 0.0
+        for fsr_index, cx, cy in centroids:
+            value = foot_values[fsr_index]
+            if value <= 0:
+                continue
+            plot_x, plot_y = _cop_plot_coords(cx, cy, foot_offset, canvas_width)
+            weighted_x += plot_x * value
+            weighted_y += plot_y * value
+        points.append(
+            {
+                "x": round(weighted_x / total, 4),
+                "y": round(weighted_y / total, 4),
+                "pressure": float(total),
+            }
+        )
     return points
 
 
