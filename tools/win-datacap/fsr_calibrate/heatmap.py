@@ -4,11 +4,18 @@ from dataclasses import dataclass
 
 import numpy as np
 import pyqtgraph as pg
-from pyqtgraph.Qt import QtGui
+from pyqtgraph.Qt import QtCore, QtGui
 
 from .boundary import build_boundary_foot_heatmap, get_boundary_label_positions
-from .config import BOUNDARY_BLUR_SIGMA
-from .cop import FootCop, compute_foot_cop
+from .config import BOUNDARY_BLUR_SIGMA, COP_TRAJECTORY_WINDOW_S
+from .cop import (
+    CopLineFit,
+    CopTrajectoryTracker,
+    FootCop,
+    compute_foot_cop,
+    fit_cop_trajectory_line,
+    fit_line_segment,
+)
 
 _COP_CROSS_HALF_LEN = 5.0
 _COP_LABEL_OFFSET = (8.0, 8.0)
@@ -20,6 +27,12 @@ class _CopCrosshair:
     v_core: pg.PlotDataItem
     h_outline: pg.PlotDataItem
     v_outline: pg.PlotDataItem
+
+
+@dataclass
+class _CopTrajectoryOverlay:
+    trail: pg.PlotDataItem
+    fit_line: pg.PlotDataItem
 
 
 class FootPressurePanel(pg.GraphicsLayoutWidget):
@@ -54,6 +67,11 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         self._cmap = pg.colormap.get("viridis") or pg.colormap.get("CET-L9")
         self._show_pressure = False
 
+        self._left_cop_tracker = CopTrajectoryTracker(COP_TRAJECTORY_WINDOW_S)
+        self._right_cop_tracker = CopTrajectoryTracker(COP_TRAJECTORY_WINDOW_S)
+        self._left_cop_fit: CopLineFit | None = None
+        self._right_cop_fit: CopLineFit | None = None
+
         self._left_cop_cross = self._create_crosshair(self.left_plot)
         self._right_cop_cross = self._create_crosshair(self.right_plot)
         self._left_cop_label = self._create_cop_label(self.left_plot)
@@ -61,13 +79,38 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         self._hide_cop_overlay(self._left_cop_cross, self._left_cop_label)
         self._hide_cop_overlay(self._right_cop_cross, self._right_cop_label)
 
+        self._left_trajectory = self._create_trajectory_overlay(self.left_plot)
+        self._right_trajectory = self._create_trajectory_overlay(self.right_plot)
+        self._hide_trajectory_overlay(self._left_trajectory)
+        self._hide_trajectory_overlay(self._right_trajectory)
+
     def set_value_mode(self, show_pressure: bool) -> None:
         self._show_pressure = show_pressure
         if not show_pressure:
+            self._left_cop_tracker.clear()
+            self._right_cop_tracker.clear()
+            self._left_cop_fit = None
+            self._right_cop_fit = None
             self._hide_cop_overlay(self._left_cop_cross, self._left_cop_label)
             self._hide_cop_overlay(self._right_cop_cross, self._right_cop_label)
+            self._hide_trajectory_overlay(self._left_trajectory)
+            self._hide_trajectory_overlay(self._right_trajectory)
 
-    def update_feet(self, display_values: np.ndarray, raw_foot_values: tuple[np.ndarray, np.ndarray]) -> None:
+    @property
+    def left_cop_fit(self) -> CopLineFit | None:
+        return self._left_cop_fit
+
+    @property
+    def right_cop_fit(self) -> CopLineFit | None:
+        return self._right_cop_fit
+
+    def update_feet(
+        self,
+        display_values: np.ndarray,
+        raw_foot_values: tuple[np.ndarray, np.ndarray],
+        *,
+        stamp: float | None = None,
+    ) -> None:
         left_raw, right_raw = raw_foot_values
         left_img = build_boundary_foot_heatmap(
             display_values[:16],
@@ -100,7 +143,7 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
 
         self._update_labels(self.left_plot, self._left_labels, left_raw, foot="left")
         self._update_labels(self.right_plot, self._right_labels, right_raw, foot="right")
-        self._update_cop_overlays(left_raw, right_raw)
+        self._update_cop_overlays(left_raw, right_raw, stamp=stamp)
 
     @staticmethod
     def _create_crosshair(plot: pg.PlotItem) -> _CopCrosshair:
@@ -129,9 +172,28 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         return label
 
     @staticmethod
+    def _create_trajectory_overlay(plot: pg.PlotItem) -> _CopTrajectoryOverlay:
+        trail_pen = pg.mkPen((80, 220, 220, 180), width=2.0)
+        fit_pen = pg.mkPen((255, 220, 80, 220), width=2.0, style=QtCore.Qt.DashLine)
+        overlay = _CopTrajectoryOverlay(
+            trail=pg.PlotDataItem(pen=trail_pen),
+            fit_line=pg.PlotDataItem(pen=fit_pen),
+        )
+        overlay.trail.setZValue(7)
+        overlay.fit_line.setZValue(8)
+        plot.addItem(overlay.trail)
+        plot.addItem(overlay.fit_line)
+        return overlay
+
+    @staticmethod
     def _hide_cop_overlay(cross: _CopCrosshair, label: pg.TextItem) -> None:
         for item in (cross.h_core, cross.v_core, cross.h_outline, cross.v_outline, label):
             item.setVisible(False)
+
+    @staticmethod
+    def _hide_trajectory_overlay(overlay: _CopTrajectoryOverlay) -> None:
+        overlay.trail.setVisible(False)
+        overlay.fit_line.setVisible(False)
 
     @staticmethod
     def _set_crosshair_pos(cross: _CopCrosshair, x: float, y: float) -> None:
@@ -141,10 +203,18 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         cross.h_outline.setData([x - half, x + half], [y, y])
         cross.v_outline.setData([x, x], [y - half, y + half])
 
-    def _update_cop_overlays(self, left_raw: np.ndarray, right_raw: np.ndarray) -> None:
+    def _update_cop_overlays(
+        self,
+        left_raw: np.ndarray,
+        right_raw: np.ndarray,
+        *,
+        stamp: float | None = None,
+    ) -> None:
         if not self._show_pressure:
             self._hide_cop_overlay(self._left_cop_cross, self._left_cop_label)
             self._hide_cop_overlay(self._right_cop_cross, self._right_cop_label)
+            self._hide_trajectory_overlay(self._left_trajectory)
+            self._hide_trajectory_overlay(self._right_trajectory)
             return
 
         left_cop = compute_foot_cop(
@@ -155,6 +225,52 @@ class FootPressurePanel(pg.GraphicsLayoutWidget):
         right_cop = compute_foot_cop(right_raw, self._sensor_positions)
         self._apply_cop_overlay(self._left_cop_cross, self._left_cop_label, left_cop)
         self._apply_cop_overlay(self._right_cop_cross, self._right_cop_label, right_cop)
+
+        if stamp is not None:
+            self._update_trajectory_overlay(
+                self._left_trajectory,
+                self._left_cop_tracker,
+                left_cop,
+                stamp,
+                fit_attr="_left_cop_fit",
+            )
+            self._update_trajectory_overlay(
+                self._right_trajectory,
+                self._right_cop_tracker,
+                right_cop,
+                stamp,
+                fit_attr="_right_cop_fit",
+            )
+
+    def _update_trajectory_overlay(
+        self,
+        overlay: _CopTrajectoryOverlay,
+        tracker: CopTrajectoryTracker,
+        cop: FootCop,
+        stamp: float,
+        *,
+        fit_attr: str,
+    ) -> None:
+        if cop.total_pressure > 0.0 and np.isfinite(cop.x) and np.isfinite(cop.y):
+            tracker.append(stamp, cop.x, cop.y)
+        tracker.prune(stamp)
+
+        xs, ys = tracker.xs_ys()
+        if xs.size >= 2:
+            overlay.trail.setData(xs, ys)
+            overlay.trail.setVisible(True)
+        else:
+            overlay.trail.setVisible(False)
+
+        fit = fit_cop_trajectory_line(xs, ys)
+        setattr(self, fit_attr, fit)
+        if fit is None:
+            overlay.fit_line.setVisible(False)
+            return
+
+        p0, p1 = fit_line_segment(fit, xs, ys)
+        overlay.fit_line.setData([p0[0], p1[0]], [p0[1], p1[1]])
+        overlay.fit_line.setVisible(True)
 
     def _apply_cop_overlay(
         self,

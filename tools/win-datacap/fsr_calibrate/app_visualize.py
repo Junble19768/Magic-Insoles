@@ -20,6 +20,12 @@ from .plot_utils import FpsTracker
 from .runtime import ReaderRuntime
 
 
+def _format_cop_angle(fit) -> str:
+    if fit is None or not np.isfinite(fit.angle_deg):
+        return "—"
+    return f"{fit.angle_deg:.1f}°"
+
+
 class FsrVisualizeApp(QtWidgets.QWidget):
     """脚型可视化：ADC / 结算压力热力图 + 重心 (COP)。"""
 
@@ -129,7 +135,11 @@ class FsrVisualizeApp(QtWidgets.QWidget):
 
         if fsr_ok and fsr_stamp != self._last_fsr_stamp:
             foot_display = self._foot_display_values(fsr_data)
-            self.foot_panel.update_feet(foot_display, (foot_display[:16], foot_display[16:32]))
+            self.foot_panel.update_feet(
+                foot_display,
+                (foot_display[:16], foot_display[16:32]),
+                stamp=fsr_stamp,
+            )
             self._last_fsr_stamp = fsr_stamp
             self._fps.tick()
 
@@ -152,6 +162,12 @@ class FsrVisualizeApp(QtWidgets.QWidget):
             ]
             if self._use_pressure_mode and fsr_ok:
                 parts.append(f"左脚 Σ={left_sum:.1f} N  右脚 Σ={right_sum:.1f} N")
+                parts.append(
+                    "左脚 θ="
+                    f"{_format_cop_angle(self.foot_panel.left_cop_fit)}  "
+                    "右脚 θ="
+                    f"{_format_cop_angle(self.foot_panel.right_cop_fit)}"
+                )
             self.status_label.setText("  |  ".join(parts))
             self._last_status_update = now
 

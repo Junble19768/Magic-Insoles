@@ -39,6 +39,10 @@ BOUNDARY_PAYLOAD_PATH = (
 # Blur level for the B-spline rendered insole sensor regions (left/right heatmaps).
 BOUNDARY_BLUR_SIGMA = 3.0
 
+# COP trajectory sliding window (pressure mode) in fsr_visualize.
+COP_TRAJECTORY_WINDOW_S = 10.0
+COP_TRAJECTORY_MIN_POINTS = 2
+
 # Legacy constants for the older 25×60 rectangular grid renderer.
 FOOT_GRID_ROWS = 25
 FOOT_GRID_COLS = 60
