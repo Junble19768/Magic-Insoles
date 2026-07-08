@@ -15,7 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from insoles.contour import compute_iou, contour_to_mask, load_mask  # noqa: E402
-from insoles.obb_transform import build_obb_frame, transform_points  # noqa: E402
+from insoles.obb_transform import (  # noqa: E402
+    build_obb_frame,
+    rotate_image_90_clockwise,
+    rotate_points_90_clockwise,
+    rotated_output_size,
+    transform_points,
+)
 from insoles.schema import ContourModel  # noqa: E402
 
 DEFAULT_AXIS_START = (1883.0, 609.0)
@@ -90,6 +96,12 @@ def main() -> int:
     parser.add_argument("--axis-start", type=str, default="1883,609")
     parser.add_argument("--axis-end", type=str, default="1763,3643")
     parser.add_argument("--margin-cm", type=float, default=DEFAULT_MARGIN_CM)
+    parser.add_argument(
+        "--rotate-cw90",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Rotate OBB output 90 degrees clockwise into portrait orientation.",
+    )
     args = parser.parse_args()
 
     base_path = args.contour_dir / "base.json"
@@ -114,7 +126,12 @@ def main() -> int:
     if verification_dir is not None:
         verification_dir.mkdir(parents=True, exist_ok=True)
 
-    output_size = frame.output_size
+    obb_width, obb_height = frame.output_size
+    if args.rotate_cw90:
+        output_size = rotated_output_size(obb_width, obb_height)
+    else:
+        output_size = (obb_width, obb_height)
+
     mask_paths = discover_pngs(args.mask_dir)
     contour_paths = discover_jsons(args.contour_dir)
     if not mask_paths:
@@ -128,12 +145,14 @@ def main() -> int:
         warped_u8 = cv2.warpAffine(
             mask.astype(np.uint8) * 255,
             frame.affine_old_to_new,
-            output_size,
+            (obb_width, obb_height),
             flags=cv2.INTER_NEAREST,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=0,
         )
         warped = warped_u8 > 127
+        if args.rotate_cw90:
+            warped = rotate_image_90_clockwise(warped.astype(np.uint8)) > 0
         transformed_masks[mask_path.stem] = warped
         cv2.imwrite(str(args.out_mask_dir / mask_path.name), warped.astype(np.uint8) * 255)
 
@@ -142,6 +161,12 @@ def main() -> int:
         model = ContourModel.from_json(contour_path)
         control_points = model.control_points_array()
         transformed_cp = transform_points(control_points, frame.affine_old_to_new)
+        if args.rotate_cw90:
+            transformed_cp = rotate_points_90_clockwise(
+                transformed_cp,
+                obb_width,
+                obb_height,
+            )
         model.control_points = [[float(x), float(y)] for x, y in transformed_cp]
         model.image_size = [output_size[0], output_size[1]]
         notes = dict(model.notes)
@@ -149,6 +174,7 @@ def main() -> int:
         notes["obb_axis_end"] = [axis_end[0], axis_end[1]]
         notes["obb_margin_cm"] = args.margin_cm
         notes["obb_source"] = "base-axis-obb"
+        notes["obb_rotate_cw90"] = args.rotate_cw90
         model.notes = notes
         model.to_json(args.out_contour_dir / contour_path.name)
 
@@ -180,6 +206,8 @@ def main() -> int:
         "axis_start": [axis_start[0], axis_start[1]],
         "axis_end": [axis_end[0], axis_end[1]],
         "margin_cm": args.margin_cm,
+        "rotate_cw90": args.rotate_cw90,
+        "obb_size_before_rotation": [obb_width, obb_height],
         "output_size": [output_size[0], output_size[1]],
         "summary": {
             "count": len(entries),
@@ -205,6 +233,8 @@ def main() -> int:
         "max_short": frame.max_short,
         "margin_cm": frame.margin_cm,
         "pixel_scale_cm": frame.pixel_scale_cm,
+        "rotate_cw90": args.rotate_cw90,
+        "obb_size_before_rotation": [obb_width, obb_height],
         "output_size": [output_size[0], output_size[1]],
         "corners_old": frame.corners_old.tolist(),
         "affine_old_to_new": frame.affine_old_to_new.tolist(),

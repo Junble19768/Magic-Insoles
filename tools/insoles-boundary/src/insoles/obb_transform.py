@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import cv2
 import numpy as np
 
 
@@ -109,3 +110,32 @@ def transform_points(points: np.ndarray, affine_old_to_new: np.ndarray) -> np.nd
     linear = affine[:, :2]
     shift = affine[:, 2]
     return samples @ linear.T + shift
+
+
+def rotated_output_size(width: int, height: int) -> tuple[int, int]:
+    """Return (width, height) after a 90-degree clockwise rotation."""
+    return height, width
+
+
+def rotate_image_90_clockwise(image: np.ndarray) -> np.ndarray:
+    """Rotate a 2D image 90 degrees clockwise."""
+    if image.ndim != 2:
+        raise ValueError("image must be a 2D array")
+    return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+
+
+def rotate_points_90_clockwise(
+    points: np.ndarray,
+    width: int,
+    height: int,
+) -> np.ndarray:
+    """Rotate top-left (x, y) points 90 degrees clockwise within a WxH canvas."""
+    samples = np.asarray(points, dtype=float)
+    if samples.ndim != 2 or samples.shape[1] != 2:
+        raise ValueError("points must have shape (n, 2)")
+
+    x = samples[:, 0]
+    y = samples[:, 1]
+    new_x = (height - 1) - y
+    new_y = x
+    return np.stack([new_x, new_y], axis=1)
