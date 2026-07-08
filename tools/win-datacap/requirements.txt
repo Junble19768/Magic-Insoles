@@ -1,3 +1,10 @@
 pyusb
 libusb-package
 pyyaml
+numpy>=1.26,<3
+opencv-python>=4.9,<5
+scipy>=1.11,<2
+pillow>=10,<12
+pyqtgraph
+PyQt5
+websockets

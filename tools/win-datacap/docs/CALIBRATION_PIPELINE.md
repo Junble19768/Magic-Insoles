@@ -33,6 +33,7 @@ flowchart LR
 - `fsr_calibrate/pipeline.py::AlignPipeline` 用参考力传感器的时间戳做**插值锚点**，只在 FSR 采样时间落在参考力有效窗口内（`FORCE_ANCHOR_WINDOW_S`/`FORCE_INTERP_MAX_SKEW_S`）时才写入一行 CSV，保证 FSR 电压与参考压力**时间对齐**。
 - 每行 CSV：`timestamp, fsr_00..fsr_31, force_ch0`（`_csv_header`）。
 - 操作流程：对准某一路 FSR 施加连续变化的压力，同时用参考力传感器读数标定，`record/<批次名>/`（如 `9mm`，代表垫材厚度等实验批次标识）下按时间戳生成一个 CSV。
+- 左侧热力图几何来自 `tools/insoles-boundary/reports/render_payload.json` 的 B-spline 传感器区域（不再使用 25×60 矩形网格）。
 
 ## 3. 离线拟合（`plot_fsr_grid_fit.py`）
 

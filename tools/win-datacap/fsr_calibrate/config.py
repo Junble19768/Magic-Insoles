@@ -1,5 +1,7 @@
 from pathlib import Path
 
+TOOLS_ROOT = Path(__file__).resolve().parents[2]
+
 FSR_HOST = "127.0.0.1"
 FSR_PORT = 6543
 FSR_PACKET_SIZE = 320
@@ -27,6 +29,14 @@ MODEL_UI_TO_YAML: dict[str, str] = {
     "倒数函数": "inverse",
 }
 
+BOUNDARY_PAYLOAD_PATH = (
+    TOOLS_ROOT / "insoles-boundary" / "reports" / "render_payload.json"
+)
+
+# Blur level for the B-spline rendered insole sensor regions (left/right heatmaps).
+BOUNDARY_BLUR_SIGMA = 3.0
+
+# Legacy constants for the older 25×60 rectangular grid renderer.
 FOOT_GRID_ROWS = 25
 FOOT_GRID_COLS = 60
 FOOT_SCALE_UP = 8
