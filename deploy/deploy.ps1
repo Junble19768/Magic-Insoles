@@ -1,10 +1,12 @@
 # magic-insoles one-click deploy (local build + scp sync + remote restart)
 
-# Backend: backend_prod/ only (backend/ test stub is deprecated)
+# Backend: backend_prod/ (default) or backend/ test stub (-FakeBackend)
 
 # Usage: .\deploy\deploy.ps1
 
 #        .\deploy\deploy.ps1 -Server root@47.76.112.33 -SkipBuild
+
+#        .\deploy\deploy.ps1 -FakeBackend -BackendOnly
 
 
 
@@ -22,9 +24,19 @@ param(
 
     [switch]$FrontendOnly,
 
-    [switch]$BackendOnly
+    [switch]$BackendOnly,
+
+    [switch]$FakeBackend
 
 )
+
+
+
+if ($FakeBackend) {
+
+    $BackendDir = "backend"
+
+}
 
 
 
@@ -116,9 +128,21 @@ if (-not $FrontendOnly) {
 
 
 
-    Invoke-Step "Updating systemd unit..." {
+    $serviceFile = if ($FakeBackend) {
 
-        scp (Join-Path $PSScriptRoot "magic-insoles-api.service") "${Server}:/etc/systemd/system/magic-insoles-api.service"
+        "magic-insoles-api-fake.service"
+
+    } else {
+
+        "magic-insoles-api.service"
+
+    }
+
+
+
+    Invoke-Step "Updating systemd unit ($serviceFile)..." {
+
+        scp (Join-Path $PSScriptRoot $serviceFile) "${Server}:/etc/systemd/system/magic-insoles-api.service"
 
     }
 
@@ -160,7 +184,13 @@ if (-not $FrontendOnly) {
 
 Write-Host ""
 
+$backendLabel = if ($FakeBackend) { "fake stub (backend/)" } else { "production (backend_prod/)" }
+
+
+
 Write-Host "Deploy complete." -ForegroundColor Green
+
+Write-Host "  Backend:  $backendLabel"
 
 Write-Host "  Frontend: http://47.76.112.33/insoles/"
 
@@ -168,6 +198,10 @@ Write-Host "  API:      http://47.76.112.33/api/activity/today"
 
 Write-Host "  Health:   http://47.76.112.33/health"
 
-Write-Host "  Device TCP: port 9000 (ensure security group allows if needed)"
+if (-not $FakeBackend) {
+
+    Write-Host "  Device TCP: port 9000 (ensure security group allows if needed)"
+
+}
 
 
