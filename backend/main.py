@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import math
 import random
 from datetime import date, datetime, timedelta
-from typing import Any
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -120,25 +123,115 @@ def get_activity_history(
 
 # ── Gait ──
 
+FootSide = Literal["left", "right"]
 
-def _make_cop_points(num: int, in_toe: bool) -> list[dict[str, float]]:
-    points = []
+_BOUNDARY_ASSET_CANDIDATES = (
+    Path(__file__).resolve().parents[1] / "backend_prod" / "data" / "boundary_assets.json",
+    Path(__file__).resolve().parent / "data" / "boundary_assets.json",
+)
+
+
+@lru_cache(maxsize=1)
+def _load_boundary_assets() -> dict[str, Any]:
+    for path in _BOUNDARY_ASSET_CANDIDATES:
+        if path.is_file():
+            with path.open(encoding="utf-8") as handle:
+                return json.load(handle)
+    raise FileNotFoundError("boundary_assets.json not found for fake gait mock")
+
+
+@lru_cache(maxsize=1)
+def _boundary_centroids() -> list[tuple[int, float, float]]:
+    payload = _load_boundary_assets()
+    return [
+        (int(item["fsrIndex"]), float(item["cx"]), float(item["cy"]))
+        for item in payload.get("centroids", [])
+    ]
+
+
+@lru_cache(maxsize=1)
+def _canvas_width() -> int:
+    return int(_load_boundary_assets()["canvas"]["width"])
+
+
+def _cop_display_coords(cx: float, cy: float, side: FootSide) -> tuple[float, float]:
+    """Map sensor-field centroids to 132x324 display overlay coordinates."""
+    canvas_width = _canvas_width()
+    if side == "left":
+        return canvas_width - 1 - cx, cy
+    return cx, cy
+
+
+def _seed_for_foot(target_date: str, side: FootSide) -> None:
+    seed = sum(ord(ch) for ch in f"{target_date}:{side}") + 42
+    random.seed(seed)
+
+
+def _make_cop_points(
+    num: int,
+    in_toe: bool,
+    side: FootSide,
+    target_date: str,
+) -> list[dict[str, float]]:
+    _seed_for_foot(target_date, side)
+    centroids = _boundary_centroids()
+    cy_values = [cy for _, _, cy in centroids]
+    cx_values = [cx for _, cx, _ in centroids]
+    heel_cy = max(cy_values)
+    toe_cy = min(cy_values)
+    mid_cx = sum(cx_values) / len(cx_values)
+    lateral_sign = -1.0 if side == "right" else 1.0
+    in_toe_bias = 14.0 if in_toe else 0.0
+
+    points: list[dict[str, float]] = []
     for i in range(num):
-        t = i / num
-        if in_toe:
-            x = 0.08 + math.sin(t * 3.5) * 0.12 + random.gauss(0, 0.025)
-        else:
-            x = -0.02 + math.sin(t * 2.8) * 0.06 + random.gauss(0, 0.02)
-        y = -0.75 + t * 1.5 + random.gauss(0, 0.03)
-        points.append({"x": round(x, 4), "y": round(y, 4), "pressure": random.randint(1400, 2400)})
+        t = i / max(num - 1, 1)
+        cy = heel_cy + (toe_cy - heel_cy) * t + random.gauss(0, 3.5)
+        cx = mid_cx + lateral_sign * in_toe_bias * (0.35 + 0.65 * t)
+        cx += math.sin(t * math.pi * 2.4) * (4.0 if in_toe else 2.0)
+        cx += random.gauss(0, 2.5)
+        display_x, display_y = _cop_display_coords(cx, cy, side)
+        points.append(
+            {
+                "x": round(display_x, 4),
+                "y": round(display_y, 4),
+                "pressure": round(1400 + random.random() * 1000, 1),
+            }
+        )
     return points
 
 
-def _make_static_pressures(in_toe: bool) -> list[int]:
-    base = [180, 120, 40, 5, 200, 160, 80, 10, 220, 190, 60, 15, 100, 70, 30, 5]
-    if in_toe:
-        return [max(0, min(255, round(v * (0.72 if i % 4 < 2 else 1.35) + random.gauss(0, 10)))) for i, v in enumerate(base)]
-    return [max(0, min(255, round(v + random.gauss(0, 15)))) for v in base]
+def _make_static_pressures(
+    in_toe: bool,
+    side: FootSide,
+    target_date: str,
+) -> list[int]:
+    _seed_for_foot(f"{target_date}:pressures:{side}", side)
+    centroids = _boundary_centroids()
+    pressures = [0] * 16
+    for fsr_index, cx, cy in centroids:
+        toe_weight = 1.0 - (cy - 40.0) / 250.0
+        medial_weight = 1.0
+        if in_toe:
+            medial_weight = 1.35 if (side == "right" and cx < 70) or (side == "left" and cx > 62) else 0.82
+        base = max(20, min(255, round(90 + toe_weight * 110 * medial_weight + random.gauss(0, 12))))
+        pressures[fsr_index] = base
+    return pressures
+
+
+def _foot_analysis(
+    in_toe: bool,
+    side: FootSide,
+    classification: str,
+    confidence: float,
+    target_date: str,
+) -> dict[str, Any]:
+    return {
+        "pressures": _make_static_pressures(in_toe, side, target_date),
+        "copPoints": _make_cop_points(100, in_toe, side, target_date),
+        "classification": classification,
+        "confidence": confidence,
+    }
 
 
 @app.get("/api/gait/summary")
@@ -150,18 +243,8 @@ def get_gait_summary(
     target = date.today().isoformat() if date_param is None else date_param
     return {
         "date": target,
-        "leftFoot": {
-            "pressures": _make_static_pressures(False),
-            "copPoints": _make_cop_points(100, False),
-            "classification": "normal",
-            "confidence": 0.94,
-        },
-        "rightFoot": {
-            "pressures": _make_static_pressures(True),
-            "copPoints": _make_cop_points(100, True),
-            "classification": "in_toe",
-            "confidence": 0.78,
-        },
+        "leftFoot": _foot_analysis(False, "left", "normal", 0.94, target),
+        "rightFoot": _foot_analysis(True, "right", "in_toe", 0.78, target),
     }
 
 
