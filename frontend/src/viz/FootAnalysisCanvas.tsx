@@ -129,28 +129,32 @@ export function FootAnalysisCanvas({
 
     window.addEventListener('resize', handleResize)
 
-    void loadBoundaryAssets().then((assets) => {
-      if (disposed) {
-        return
-      }
-
-      const heatmap = buildBoundaryFootHeatmap(assets, pressures, side)
-      const image = composeFootHeatmapImage(heatmap, {
-        showTrajectoryDensity,
-        copPoints,
-      })
-
-      let fitSegment: [{ x: number; y: number }, { x: number; y: number }] | null = null
-      if (showTrajectoryFit && copPoints.length >= 2) {
-        const { xs, ys } = copPointsToPlotArrays(copPoints)
-        const fit = fitCopTrajectoryLine(xs, ys)
-        if (fit) {
-          fitSegment = fitLineSegment(fit, xs, ys)
+    void loadBoundaryAssets()
+      .then((assets) => {
+        if (disposed) {
+          return
         }
-      }
 
-      renderScene(image, heatmap.displayWidth, heatmap.displayHeight, fitSegment)
-    })
+        const heatmap = buildBoundaryFootHeatmap(assets, pressures, side)
+        const image = composeFootHeatmapImage(heatmap, {
+          showTrajectoryDensity,
+          copPoints,
+        })
+
+        let fitSegment: [{ x: number; y: number }, { x: number; y: number }] | null = null
+        if (showTrajectoryFit && copPoints.length >= 2) {
+          const { xs, ys } = copPointsToPlotArrays(copPoints)
+          const fit = fitCopTrajectoryLine(xs, ys)
+          if (fit) {
+            fitSegment = fitLineSegment(fit, xs, ys)
+          }
+        }
+
+        renderScene(image, heatmap.displayWidth, heatmap.displayHeight, fitSegment)
+      })
+      .catch((error: unknown) => {
+        console.error('FootAnalysisCanvas failed to load boundary assets', error)
+      })
 
     return () => {
       disposed = true

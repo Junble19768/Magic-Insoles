@@ -1,6 +1,6 @@
 import type { BoundaryAssets } from '@/viz/boundary/types'
 
-const ASSETS_URL = '/data/boundary_assets.json'
+const ASSETS_URL = `${import.meta.env.BASE_URL}data/boundary_assets.json`
 
 let cachedAssets: BoundaryAssets | null = null
 let loadPromise: Promise<BoundaryAssets> | null = null

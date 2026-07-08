@@ -10,8 +10,8 @@ export function transformFieldForDisplay(
   canvasHeight: number,
   side: FootSide,
 ): { field: Float32Array; displayWidth: number; displayHeight: number } {
-  const displayWidth = canvasHeight
-  const displayHeight = canvasWidth
+  const displayWidth = canvasWidth
+  const displayHeight = canvasHeight
   const out = new Float32Array(displayWidth * displayHeight)
 
   for (let row = 0; row < canvasHeight; row += 1) {
