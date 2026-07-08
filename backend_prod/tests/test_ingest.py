@@ -15,6 +15,8 @@ from protocol.payloads import DATA_TYPE_FORCE, DATA_TYPE_GPS, parse_gps
 from services.ingest import build_force_payload, ingest_frame, ingest_http_frames
 import struct
 
+from pygcj.pygcj import GCJProj
+trans = GCJProj()
 
 @pytest.fixture()
 def db_session():
@@ -50,11 +52,13 @@ def test_ingest_gps_frame(db_session) -> None:
         3,
         8,
     )
+
+    gcj_lat, gcj_lon = trans.wgs_to_gcj(40.02, 116.39)
     frame = DeviceFrame(seq=3, data_type=DATA_TYPE_GPS, payload=payload)
     ingest_frame(frame, db_session)
     rows = db_session.query(GpsPoint).all()
     assert len(rows) == 1
-    assert abs(rows[0].latitude - 40.02) < 0.001
+    assert abs(rows[0].latitude - gcj_lat) < 0.001
 
 
 def test_http_ingest_path(db_session) -> None:
