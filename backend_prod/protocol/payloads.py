@@ -5,6 +5,9 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
+from pygcj.pygcj import GCJProj
+trans = GCJProj()
+
 FORCE_CHANNEL_COUNT = 32
 EVENT_BATCH_MAX = 50
 EVENT_ID_HEARTBEAT = 0x00000000
@@ -94,10 +97,13 @@ def parse_gps(payload: bytes) -> GpsPayload:
         fix_type,
         satellite_count,
     ) = struct.unpack_from("<QddffffBB", payload, 0)
+    # Transform WGS84 Coordinates to GCJ02
+    gcj_lat, gcj_lon = trans.wgs_to_gcj(latitude, longitude)
+    
     return GpsPayload(
         timestamp=timestamp,
-        latitude=latitude,
-        longitude=longitude,
+        latitude=gcj_lat,
+        longitude=gcj_lon,
         altitude=altitude,
         speed=speed,
         heading=heading,
