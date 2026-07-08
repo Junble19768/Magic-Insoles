@@ -1,4 +1,5 @@
 import type { FootSide } from '@/viz/boundary/types'
+import type { CopPoint } from '@/types'
 
 /**
  * Map original sensor field (height × width) to display buffer for pyqtgraph-style
@@ -52,4 +53,68 @@ export function copPlotToPixelIndex(
   displayWidth: number,
 ): number {
   return Math.round(plotY) * displayWidth + Math.round(plotX)
+}
+
+/** Map sensor-centroid (cx, cy) into 132×324 display coordinates. */
+export function mapCopPointToDisplay(
+  point: CopPoint,
+  side: FootSide,
+  canvasWidth: number,
+): CopPoint {
+  const mapped = copToDisplayCoords(point.x, point.y, side, canvasWidth)
+  return { ...point, x: mapped.x, y: mapped.y }
+}
+
+export function mapCopPointsToDisplay(
+  copPoints: readonly CopPoint[],
+  side: FootSide,
+  canvasWidth: number,
+): CopPoint[] {
+  return copPoints.map((point) => mapCopPointToDisplay(point, side, canvasWidth))
+}
+
+/**
+ * Normalize COP points into the current 132×324 display space.
+ *
+ * Older gait endpoints emitted the pre-y=x display coordinates as
+ * `{ x: cy, y: mirroredCx }` in a 324×132 space. Those points are visually
+ * horizontal on the corrected foot image, so swap them back when detected.
+ */
+export function normalizeCopPointsForDisplay(
+  copPoints: readonly CopPoint[],
+  displayWidth: number,
+  displayHeight: number,
+): CopPoint[] {
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let finiteCount = 0
+
+  for (const point of copPoints) {
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      continue
+    }
+    finiteCount += 1
+    minX = Math.min(minX, point.x)
+    minY = Math.min(minY, point.y)
+    maxX = Math.max(maxX, point.x)
+    maxY = Math.max(maxY, point.y)
+  }
+
+  if (finiteCount === 0) {
+    return [...copPoints]
+  }
+
+  const xSpan = maxX - minX
+  const ySpan = maxY - minY
+  const isPortraitDisplay = displayHeight > displayWidth
+  const exceedsPortraitWidth = maxX >= displayWidth && maxX <= displayHeight && maxY <= displayWidth
+  const hasHorizontalMainAxis = isPortraitDisplay && xSpan > ySpan * 1.5
+  const looksTransposed = exceedsPortraitWidth || hasHorizontalMainAxis
+  if (!looksTransposed) {
+    return [...copPoints]
+  }
+
+  return copPoints.map((point) => ({ ...point, x: point.y, y: point.x }))
 }

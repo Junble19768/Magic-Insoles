@@ -1,5 +1,6 @@
 export {
   decodeRleMask,
+  getBoundaryAspectRatio,
   getBoundaryAssets,
   loadBoundaryAssets,
   preloadBoundaryAssets,
@@ -12,5 +13,12 @@ export {
   overlayDensityHeatmap,
 } from '@/viz/boundary/render'
 export { buildCopDensityField } from '@/viz/boundary/trajectoryHeatmap'
-export { copToDisplayCoords, leftFootMirrorX, transformFieldForDisplay } from '@/viz/boundary/transform'
+export {
+  copToDisplayCoords,
+  leftFootMirrorX,
+  mapCopPointToDisplay,
+  mapCopPointsToDisplay,
+  normalizeCopPointsForDisplay,
+  transformFieldForDisplay,
+} from '@/viz/boundary/transform'
 export type { BoundaryAssets, BoundaryCentroid, FootSide } from '@/viz/boundary/types'

@@ -5,6 +5,7 @@ import {
   composeFootHeatmapImage,
   drawTrajectoryOverlays,
   loadBoundaryAssets,
+  normalizeCopPointsForDisplay,
 } from '@/viz/boundary'
 import {
   copPointsToPlotArrays,
@@ -21,6 +22,39 @@ interface FootAnalysisCanvasProps {
   showTrajectoryFit?: boolean
 }
 
+const PLANE_HEIGHT = 2
+
+function updateCameraForAspect(
+  camera: THREE.OrthographicCamera,
+  displayWidth: number,
+  displayHeight: number,
+): void {
+  const aspect = displayWidth / displayHeight
+  if (aspect >= 1) {
+    camera.left = -PLANE_HEIGHT / 2
+    camera.right = PLANE_HEIGHT / 2
+    camera.top = PLANE_HEIGHT / 2 / aspect
+    camera.bottom = -PLANE_HEIGHT / 2 / aspect
+  } else {
+    camera.left = -PLANE_HEIGHT / 2 * aspect
+    camera.right = PLANE_HEIGHT / 2 * aspect
+    camera.top = PLANE_HEIGHT / 2
+    camera.bottom = -PLANE_HEIGHT / 2
+  }
+  camera.updateProjectionMatrix()
+}
+
+function updatePlaneGeometry(
+  mesh: THREE.Mesh,
+  displayWidth: number,
+  displayHeight: number,
+): void {
+  const aspect = displayWidth / displayHeight
+  const planeWidth = PLANE_HEIGHT * aspect
+  mesh.geometry.dispose()
+  mesh.geometry = new THREE.PlaneGeometry(planeWidth, PLANE_HEIGHT)
+}
+
 function imageDataToTexture(image: ImageData): THREE.DataTexture {
   const texture = new THREE.DataTexture(
     image.data,
@@ -33,6 +67,16 @@ function imageDataToTexture(image: ImageData): THREE.DataTexture {
   texture.minFilter = THREE.LinearFilter
   texture.magFilter = THREE.LinearFilter
   return texture
+}
+
+function syncRendererSize(
+  renderer: THREE.WebGLRenderer,
+  container: HTMLDivElement,
+): void {
+  renderer.setSize(container.clientWidth, container.clientHeight, false)
+  renderer.domElement.style.display = 'block'
+  renderer.domElement.style.width = '100%'
+  renderer.domElement.style.height = '100%'
 }
 
 export function FootAnalysisCanvas({
@@ -62,43 +106,35 @@ export function FootAnalysisCanvas({
     renderer.setPixelRatio(window.devicePixelRatio)
     container.appendChild(renderer.domElement)
 
-    const geometry = new THREE.PlaneGeometry(1, 1)
     const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
-    const mesh = new THREE.Mesh(geometry, material)
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material)
     scene.add(mesh)
 
     let texture: THREE.DataTexture | null = null
+    let displayWidth = 0
+    let displayHeight = 0
 
     const renderScene = (
       image: ImageData,
-      displayWidth: number,
-      displayHeight: number,
+      width: number,
+      height: number,
       fitSegment: [{ x: number; y: number }, { x: number; y: number }] | null,
+      displayCopPoints: readonly CopPoint[],
     ): void => {
       if (disposed) {
         return
       }
 
-      const aspect = displayWidth / displayHeight
-      const maxSpan = 2
-      if (aspect >= 1) {
-        camera.left = -maxSpan / 2
-        camera.right = maxSpan / 2
-        camera.top = maxSpan / 2 / aspect
-        camera.bottom = -maxSpan / 2 / aspect
-      } else {
-        camera.left = -maxSpan / 2 * aspect
-        camera.right = maxSpan / 2 * aspect
-        camera.top = maxSpan / 2
-        camera.bottom = -maxSpan / 2
-      }
-      camera.updateProjectionMatrix()
+      displayWidth = width
+      displayHeight = height
+      updateCameraForAspect(camera, displayWidth, displayHeight)
+      updatePlaneGeometry(mesh, displayWidth, displayHeight)
 
       const overlayCanvas = document.createElement('canvas')
       drawTrajectoryOverlays(
         overlayCanvas,
         image,
-        copPoints,
+        displayCopPoints,
         displayWidth,
         displayHeight,
         fitSegment,
@@ -115,15 +151,17 @@ export function FootAnalysisCanvas({
       material.map = texture
       material.needsUpdate = true
 
-      renderer.setSize(container.clientWidth, container.clientHeight)
+      syncRendererSize(renderer, container)
       renderer.render(scene, camera)
     }
 
     const handleResize = (): void => {
-      if (disposed || !texture) {
+      if (disposed || !texture || displayWidth === 0 || displayHeight === 0) {
         return
       }
-      renderer.setSize(container.clientWidth, container.clientHeight)
+      updateCameraForAspect(camera, displayWidth, displayHeight)
+      updatePlaneGeometry(mesh, displayWidth, displayHeight)
+      syncRendererSize(renderer, container)
       renderer.render(scene, camera)
     }
 
@@ -135,22 +173,30 @@ export function FootAnalysisCanvas({
           return
         }
 
+        const { width, height } = assets.canvas
+        container.style.aspectRatio = `${width} / ${height}`
+
         const heatmap = buildBoundaryFootHeatmap(assets, pressures, side)
+        const displayCopPoints = normalizeCopPointsForDisplay(
+          copPoints,
+          heatmap.displayWidth,
+          heatmap.displayHeight,
+        )
         const image = composeFootHeatmapImage(heatmap, {
           showTrajectoryDensity,
-          copPoints,
+          copPoints: displayCopPoints,
         })
 
         let fitSegment: [{ x: number; y: number }, { x: number; y: number }] | null = null
-        if (showTrajectoryFit && copPoints.length >= 2) {
-          const { xs, ys } = copPointsToPlotArrays(copPoints)
+        if (showTrajectoryFit && displayCopPoints.length >= 2) {
+          const { xs, ys } = copPointsToPlotArrays(displayCopPoints)
           const fit = fitCopTrajectoryLine(xs, ys)
           if (fit) {
             fitSegment = fitLineSegment(fit, xs, ys)
           }
         }
 
-        renderScene(image, heatmap.displayWidth, heatmap.displayHeight, fitSegment)
+        renderScene(image, heatmap.displayWidth, heatmap.displayHeight, fitSegment, displayCopPoints)
       })
       .catch((error: unknown) => {
         console.error('FootAnalysisCanvas failed to load boundary assets', error)
@@ -160,8 +206,8 @@ export function FootAnalysisCanvas({
       disposed = true
       window.removeEventListener('resize', handleResize)
       texture?.dispose()
+      mesh.geometry.dispose()
       renderer.dispose()
-      geometry.dispose()
       material.dispose()
       container.innerHTML = ''
     }

@@ -60,3 +60,7 @@ export function getBoundaryAssets(): BoundaryAssets | null {
 export function preloadBoundaryAssets(): Promise<BoundaryAssets> {
   return loadBoundaryAssets()
 }
+
+export function getBoundaryAspectRatio(assets: BoundaryAssets): number {
+  return assets.canvas.width / assets.canvas.height
+}

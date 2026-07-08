@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react'
 import type { FootAnalysis, GaitClass } from '@/types'
 import { copPointsToPlotArrays, fitCopTrajectoryLine } from '@/viz/cop'
+import { getBoundaryAssets } from '@/viz/boundary/assets'
+import { normalizeCopPointsForDisplay } from '@/viz/boundary/transform'
 
 interface GaitClassificationCardProps {
   left: FootAnalysis
@@ -13,8 +15,15 @@ const LABEL: Record<GaitClass, string> = {
   out_toe: '外八',
 }
 
+const FALLBACK_BOUNDARY_WIDTH = 132
+const FALLBACK_BOUNDARY_HEIGHT = 324
+
 function formatTrajectoryAngle(copPoints: FootAnalysis['copPoints']): string {
-  const { xs, ys } = copPointsToPlotArrays(copPoints)
+  const assets = getBoundaryAssets()
+  const displayWidth = assets?.canvas.width ?? FALLBACK_BOUNDARY_WIDTH
+  const displayHeight = assets?.canvas.height ?? FALLBACK_BOUNDARY_HEIGHT
+  const displayCopPoints = normalizeCopPointsForDisplay(copPoints, displayWidth, displayHeight)
+  const { xs, ys } = copPointsToPlotArrays(displayCopPoints)
   const fit = fitCopTrajectoryLine(xs, ys)
   if (!fit) {
     return '—'
