@@ -1,0 +1,194 @@
+{
+  "mask_dir": "C:\\Users\\Junble\\Desktop\\insoles\\masks",
+  "output_dir": "C:\\Users\\Junble\\Desktop\\insoles\\contours",
+  "contour_type": "uniform_bspline",
+  "sensor_control_points": [
+    10,
+    40
+  ],
+  "base_control_points": [
+    10,
+    120
+  ],
+  "eval_n": 2000,
+  "summary": {
+    "count": 17,
+    "mean_iou": 0.990092,
+    "min_iou": 0.98634,
+    "max_iou": 0.998406,
+    "mean_control_points": 42.06,
+    "max_control_points": 116
+  },
+  "entries": [
+    {
+      "id": "base",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\base.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\base.json",
+      "n_control_points": 116,
+      "cp_min": 10,
+      "cp_max": 120,
+      "iou": 0.998406,
+      "duplicate_of": null
+    },
+    {
+      "id": "1",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\1.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\1.json",
+      "n_control_points": 40,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.989774,
+      "duplicate_of": null
+    },
+    {
+      "id": "2",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\2.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\2.json",
+      "n_control_points": 40,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.989774,
+      "duplicate_of": "1"
+    },
+    {
+      "id": "3",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\3.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\3.json",
+      "n_control_points": 40,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.989003,
+      "duplicate_of": null
+    },
+    {
+      "id": "4",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\4.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\4.json",
+      "n_control_points": 30,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.99011,
+      "duplicate_of": null
+    },
+    {
+      "id": "5",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\5.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\5.json",
+      "n_control_points": 36,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.988772,
+      "duplicate_of": null
+    },
+    {
+      "id": "6",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\6.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\6.json",
+      "n_control_points": 36,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.98661,
+      "duplicate_of": null
+    },
+    {
+      "id": "7",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\7.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\7.json",
+      "n_control_points": 35,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.988668,
+      "duplicate_of": null
+    },
+    {
+      "id": "8",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\8.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\8.json",
+      "n_control_points": 39,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.993091,
+      "duplicate_of": null
+    },
+    {
+      "id": "9",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\9.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\9.json",
+      "n_control_points": 39,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.992167,
+      "duplicate_of": null
+    },
+    {
+      "id": "10",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\10.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\10.json",
+      "n_control_points": 38,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.991864,
+      "duplicate_of": null
+    },
+    {
+      "id": "11",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\11.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\11.json",
+      "n_control_points": 40,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.991418,
+      "duplicate_of": null
+    },
+    {
+      "id": "12",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\12.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\12.json",
+      "n_control_points": 35,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.991057,
+      "duplicate_of": null
+    },
+    {
+      "id": "13",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\13.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\13.json",
+      "n_control_points": 38,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.9864,
+      "duplicate_of": null
+    },
+    {
+      "id": "14",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\14.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\14.json",
+      "n_control_points": 36,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.98634,
+      "duplicate_of": null
+    },
+    {
+      "id": "15",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\15.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\15.json",
+      "n_control_points": 40,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.986352,
+      "duplicate_of": null
+    },
+    {
+      "id": "16",
+      "source": "C:\\Users\\Junble\\Desktop\\insoles\\masks\\16.png",
+      "output": "C:\\Users\\Junble\\Desktop\\insoles\\contours\\16.json",
+      "n_control_points": 37,
+      "cp_min": 10,
+      "cp_max": 40,
+      "iou": 0.99175,
+      "duplicate_of": null
+    }
+  ]
+}
