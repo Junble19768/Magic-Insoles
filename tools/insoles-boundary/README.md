@@ -12,21 +12,33 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1      # Windows PowerShell（Linux/mac: . .venv/bin/activate）
 pip install -r requirements.txt
 
-# 复现主线：缩放掩码 → 自适应 B-spline → 导出 render payload
-python scripts/scale_masks.py --scale 0.1 --mask-dir masks --output-dir masks_scaled --source-pixel-scale-cm 0.00855
+# 复现主线：修正掩码 → 全分辨率拟合 → OBB+CW90 → 缩放 → adaptive → 导出
+python scripts/process_masks.py --fit-mode adaptive --metric boundary_mean \
+  --mask-dir masks --output-dir contours --report reports/iou_summary.json
+
+python scripts/reframe_by_base_obb.py \
+  --mask-dir masks --contour-dir contours \
+  --out-mask-dir masks_obb --out-contour-dir contours_obb \
+  --axis-start 1883,609 --axis-end 1763,3643 --margin-cm 1.0 --rotate-cw90
+
+python scripts/scale_masks.py --scale 0.1 --mask-dir masks_obb \
+  --output-dir masks_scaled --source-pixel-scale-cm 0.00855
+
 python scripts/process_masks.py --fit-mode adaptive --metric boundary_mean \
   --mask-dir masks_scaled --output-dir contours_scaled_adaptive \
   --report reports/boundary_summary_scaled.json --dimension-scale 0.1
-python scripts/export_render_payload.py --contour-dir contours_scaled_adaptive --output reports/render_payload.json
+
+python scripts/export_render_payload.py \
+  --contour-dir contours_scaled_adaptive --output reports/render_payload.json
 ```
 
 ## 目录速览
 
 | 路径 | 内容 |
 |------|------|
-| `src/insoles/` | 核心算法库（轮廓提取、uniform/adaptive B-spline、边界指标、坐标变换、payload 导出） |
+| `src/insoles/` | 核心算法库（轮廓提取、uniform/adaptive B-spline、边界指标、OBB+CW90、payload 导出与运行时渲染） |
 | `scripts/` | 命令行流水线（缩放 / 拟合 / 导出 / 重绘 / OBB / 左下角坐标） |
-| `masks/` `masks_scaled/` | 原始 / 10× 缩小的二值掩码 PNG |
+| `masks/` `masks_obb/` `masks_scaled/` | 原始 / OBB 裁切 / 10× 缩小的二值掩码 PNG |
 | `contours*/` | 各阶段轮廓参数 JSON（`contours_scaled_adaptive/` 为最终来源） |
 | `reports/` | 各阶段验收报告 + **`render_payload.json`（最终交付物）** |
 | `docs/` | `PIPELINE.md` 总览 + 阶段任务留痕 + 设计讨论 + 记忆快照 |
@@ -34,6 +46,7 @@ python scripts/export_render_payload.py --contour-dir contours_scaled_adaptive -
 ## 关键约定
 
 - 物理尺度：原始掩码 `0.00855 cm/px`；10× 缩小后 `0.0855 cm/px`（缩放必须同步修正）。
+- OBB 裁切后默认 **顺时针旋转 90°**（`--rotate-cw90`），最终画布 **132×324**。
 - 拟合表示：周期三次 B-spline；adaptive 轮廓的 JSON 必须携带 `knot_params`。
 - 最终交付：`reports/render_payload.json`（schema `insoles.render_payload/v1`）。
 

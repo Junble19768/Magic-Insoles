@@ -61,13 +61,15 @@ tools/insoles-boundary/
 │   ├── process_masks.py          批量拟合（uniform / adaptive）+ IOU 验收
 │   ├── export_render_payload.py  导出 render_payload.json（最终交付）
 │   ├── render_contour.py         单张轮廓 JSON 重绘回 mask（抽查）
-│   ├── reframe_by_base_obb.py    按 base 长轴 OBB 统一重映射（可选）
+│   ├── reframe_by_base_obb.py    按 base 长轴 OBB 统一重映射 + CW90 旋转
 │   ├── reorient_to_bottom_left.py 左下角 row/col 坐标系（可选）
 │   └── summarize_scaled_pipeline.py 修正 scaled pixel_scale + 汇总对比表
 ├── masks/                        17 张原始掩码 PNG（手动抠图，0.00855 cm/px）
-├── masks_scaled/                 17 张 10× 缩小掩码 PNG
-├── contours/                     原始分辨率 uniform 轮廓 JSON
-├── contours_scaled/              缩放后 uniform 轮廓 JSON
+├── masks_obb/                    OBB 裁切 + CW90 后的掩码（1318×3244）
+├── contours_obb/                 OBB 裁切 + CW90 后的轮廓 JSON
+├── masks_scaled/                 17 张 10× 缩小掩码 PNG（132×324）
+├── contours/                     原始分辨率 adaptive 轮廓 JSON
+├── contours_scaled/              缩放后 uniform 轮廓 JSON（legacy）
 ├── contours_scaled_adaptive/     缩放后 adaptive 轮廓 JSON（render payload 来源）
 ├── reports/                      各阶段验收报告 + 最终 render_payload.json
 └── docs/
@@ -87,13 +89,13 @@ tools/insoles-boundary/
 flowchart TD
     photo[鞋垫照片 IMG_*.jpg] --> psd[Photoshop 手动抠图 insoles.psd]
     psd --> masks[masks/ 17 张二值掩码 PNG]
-    masks -->|scale_masks.py --scale 0.1| scaled[masks_scaled/ 10x 缩小]
-    scaled -->|process_masks.py --fit-mode adaptive| ada[contours_scaled_adaptive/]
+    masks -->|process_masks.py adaptive| contours[contours/ 全分辨率拟合]
+    contours -->|reframe_by_base_obb.py CW90| obb[masks_obb/ 1318x3244]
+    obb -->|scale_masks.py --scale 0.1| scaled[masks_scaled/ 132x324]
+    scaled -->|process_masks.py adaptive| ada[contours_scaled_adaptive/]
     ada -->|export_render_payload.py| payload[reports/render_payload.json 最终交付]
-    payload --> consumer[Web / 嵌入式 重绘消费方]
+    payload --> consumer[Web / fsr_calibrate 重绘消费方]
 
-    masks -.可选.-> uni[process_masks.py --fit-mode uniform → contours/]
-    uni -.可选.-> obb[reframe_by_base_obb.py → contours_obb/]
     obb -.可选.-> bl[reorient_to_bottom_left.py → contours_bl/]
 ```
 
@@ -111,27 +113,39 @@ pip install -r requirements.txt
 
 在 Photoshop 中对水平拍摄的照片逐区域抠图，导出 base + 1..16 共 17 张二值 PNG 到 `masks/`。这是全流程唯一的人工步骤，也是最珍贵、最难复现的输入。原始素材（PSD/照片）位置见第 8 节。
 
-### 阶段 1（可选）：原始分辨率 uniform 参数化
+### 阶段 1：全分辨率 adaptive 拟合
 
 ```bash
-python scripts/process_masks.py --fit-mode uniform \
+python scripts/process_masks.py --fit-mode adaptive --metric boundary_mean \
   --mask-dir masks --output-dir contours \
   --report reports/iou_summary.json
 ```
 
-在控制点预算内（传感器 10–100、base 10–150）搜索使 **IOU 最大**的均匀周期三次 B-spline。原始分辨率 mean IOU ≈ 0.992。
+在全分辨率上对修正掩码做 adaptive B-spline 拟合，为 OBB 重映射提供轮廓 JSON。mean IOU ≈ 0.968。
 
-### 阶段 2：掩码缩放（减小数据量）
+### 阶段 2：OBB 裁切 + 顺时针 90° 旋转
+
+```bash
+python scripts/reframe_by_base_obb.py \
+  --mask-dir masks --contour-dir contours \
+  --out-mask-dir masks_obb --out-contour-dir contours_obb \
+  --axis-start 1883,609 --axis-end 1763,3643 \
+  --margin-cm 1.0 --rotate-cw90
+```
+
+按 base 长轴 `(1883,609)→(1763,3643)` 计算 OBB，长/短轴各外扩 1cm，统一重映射后**默认顺时针旋转 90°** 为竖版画布 **1318×3244**。`--no-rotate-cw90` 可关闭旋转。
+
+### 阶段 3：掩码缩放（减小数据量）
 
 ```bash
 python scripts/scale_masks.py --scale 0.1 \
-  --mask-dir masks --output-dir masks_scaled \
+  --mask-dir masks_obb --output-dir masks_scaled \
   --source-pixel-scale-cm 0.00855
 ```
 
-**最近邻插值 + 重新二值化**，保持二值语义；输出报告含正确的 `pixel_scale_cm=0.0855`。
+**最近邻插值 + 重新二值化**，保持二值语义；输出 **132×324**，`pixel_scale_cm=0.0855`。
 
-### 阶段 3：缩放掩码 → adaptive B-spline（推荐主线）
+### 阶段 4：缩放掩码 → adaptive B-spline
 
 ```bash
 python scripts/process_masks.py --fit-mode adaptive --metric boundary_mean \
@@ -140,9 +154,9 @@ python scripts/process_masks.py --fit-mode adaptive --metric boundary_mean \
   --dimension-scale 0.1 --source-pixel-scale-cm 0.00855
 ```
 
-误差驱动地自适应布点（详见第 5 节），以**对称平均边界距离 `boundary_mean`** 为优化目标。scaled 数据集：mean boundary ≈ 0.35 px、mean Hausdorff ≈ 1.79 px。
+误差驱动地自适应布点（详见第 5 节），以**对称平均边界距离 `boundary_mean`** 为优化目标。scaled 数据集：mean boundary ≈ 0.29 px、mean IOU ≈ 0.917。
 
-### 阶段 3.5（可选）：修正尺度并生成对比表
+### 阶段 4.5（可选）：修正尺度并生成对比表
 
 ```bash
 python scripts/summarize_scaled_pipeline.py --dimension-scale 0.1
@@ -150,7 +164,7 @@ python scripts/summarize_scaled_pipeline.py --dimension-scale 0.1
 
 统一把 `contours_scaled*/` 的 `pixel_scale_cm` 修正为 0.0855，并把 uniform vs adaptive 结果汇总到 `reports/scaled_record.json`（仅供 QA 对比；外部集成请用 `render_payload.json`）。
 
-### 阶段 4：导出最终交付物 render payload
+### 阶段 5：导出最终交付物 render payload
 
 ```bash
 python scripts/export_render_payload.py \
@@ -158,7 +172,7 @@ python scripts/export_render_payload.py \
   --output reports/render_payload.json
 ```
 
-产出 `reports/render_payload.json`（schema `insoles.render_payload/v1`，~8KB）：画布 132×327、`pixel_scale_cm=0.0855`、17 个区域的 `cp`+`knots`。结构与外部重绘方式见第 6 节。
+产出 `reports/render_payload.json`（schema `insoles.render_payload/v1`，~8KB）：画布 **132×324**、`pixel_scale_cm=0.0855`、17 个区域的 `cp`+`knots`。结构与外部重绘方式见第 6 节。
 
 ### 抽查：单张轮廓重绘回 mask
 
@@ -166,16 +180,17 @@ python scripts/export_render_payload.py \
 python scripts/render_contour.py contours_scaled_adaptive/base.json -o /tmp/base.png
 ```
 
-### 可选分支：OBB 重映射 + 左下角坐标系
+### 可选分支：uniform 拟合 / 左下角坐标系
 
 ```bash
-# 1) 按 base 长轴 (1883,609)->(1763,3643) 计算 OBB，长/短轴各外扩 1cm，统一重映射
-python scripts/reframe_by_base_obb.py --margin-cm 1.0    # → masks_obb/ contours_obb/  (mean IOU 0.9895)
-# 2) 转成以图片左下角为原点、col 向上、row 向左的坐标系
+# uniform 全分辨率拟合（历史对比用）
+python scripts/process_masks.py --fit-mode uniform \
+  --mask-dir masks --output-dir contours_uniform \
+  --report reports/iou_summary_uniform.json
+
+# 左下角 row/col 坐标系（尚未并入 render payload）
 python scripts/reorient_to_bottom_left.py               # → masks_bl/ contours_bl/
 ```
-
-这两步用于把所有区域统一到一个与鞋垫主轴对齐的矩形画布 / 特定坐标系，尚未并入 render payload（如需可后续烘焙）。
 
 ---
 
@@ -225,13 +240,15 @@ python scripts/reorient_to_bottom_left.py               # → masks_bl/ contours
 - `hausdorff_px = max(两向最大距离)`。
 - 结论：**边界距离与 IOU 不完全一致**，验收应同时看 verification diff 图与 boundary 指标。
 
-### 5.5 Base 长轴 OBB 扩边（可选）
+### 5.5 Base 长轴 OBB 扩边 + CW90 旋转
 
-`src/insoles/obb_transform.py`
+`src/insoles/obb_transform.py` + `scripts/reframe_by_base_obb.py`
 
 - 给定长轴单位向量 `u_long` 与法向 `u_short` 建立局部坐标系；
 - 用 base 采样曲线在两轴上的投影 min/max，各方向按 `margin_px = margin_cm / pixel_scale_cm` 外扩；
-- 构建统一仿射 `old→new`，对 `masks/*.png` 用 `warpAffine(INTER_NEAREST)`、对控制点用矩阵变换，全量映射到 3272×1325 新画布，`pixel_scale_cm` 不变。**mask 重采样必须最近邻**，避免边界灰阶污染。
+- 构建统一仿射 `old→new`，对 `masks/*.png` 用 `warpAffine(INTER_NEAREST)`、对控制点用矩阵变换；
+- **默认 `--rotate-cw90`**：OBB 画布（如 3244×1318）顺时针旋转 90° 为竖版 **1318×3244**，控制点同步变换（`rotate_points_90_clockwise`）；
+- `pixel_scale_cm` 不变。**mask 重采样必须最近邻**，避免边界灰阶污染。
 
 ### 5.6 左下角 row/col 坐标系（可选）
 
@@ -271,10 +288,10 @@ python scripts/reorient_to_bottom_left.py               # → masks_bl/ contours
 
 | 阶段 / 数据集 | 方法 | 关键指标 |
 |---------------|------|----------|
-| 原始分辨率 | uniform + IOU | mean IOU ≈ 0.992 |
-| scaled（CP 20/40） | uniform + IOU | mean IOU ≈ 0.924 |
-| scaled（CP 20/40） | **adaptive + boundary_mean** | mean boundary ≈ **0.35 px**、mean Hausdorff ≈ 1.79 px、mean IOU ≈ 0.914 |
-| OBB 重映射 | warpAffine + 控制点变换 | mean IOU 0.9895（min 0.9850, max 0.9981） |
+| 全分辨率（修正 masks） | adaptive + boundary_mean | mean IOU ≈ 0.968 |
+| OBB + CW90 | warpAffine + 控制点变换 + rotate | mean IOU ≈ 0.968，输出 1318×3244 |
+| scaled（修正 masks） | **adaptive + boundary_mean** | mean boundary ≈ **0.29 px**、mean IOU ≈ 0.917 |
+| 原始分辨率（旧） | uniform + IOU | mean IOU ≈ 0.992 |
 | 左下角坐标 | 索引重排 + 往返验证 | mean IOU 0.9895 |
 
 报告文件：`reports/iou_summary*.json`、`reports/boundary_summary_scaled.json`、`reports/obb_frame.json`、`reports/scaled_record.json`、`reports/render_payload.json`。
@@ -291,18 +308,18 @@ ignored/insoles-boundary/ignored/
 ├── IMG_20260705_211123.jpg      3 MB  原始鞋垫照片
 ├── insoles.png                  7 MB  抠图导出的合成图
 ├── verification*/               各阶段「原图 | 重绘 | 差异」三联对比图
-└── masks_obb/ contours_obb/ …   OBB / 左下角等中间产物
+└── masks/                       修正前 PSD 导出的历史备份（修正版已同步至 tools/masks/）
 ```
 
-如需重跑或复核，从 `insoles.psd` 重新导出 `masks/` 即可衔接阶段 1。
+如需重跑或复核，从 `insoles.psd` 重新导出 `masks/` 后从阶段 1 衔接即可。
 
 ---
 
 ## 9. 已知问题 / 约束
 
-- `1.png` 与 `2.png` 掩码完全相同（1、2 号传感器几何一致），payload 中以 `dup` 标注。
 - `uniform_bspline` 旧 JSON 无 `knots`；render payload 目前仅导出 adaptive。
 - `pixel_scale_cm` 随缩放变化，务必用 `pixel_scale_for_dimension_scale` 同步修正。
+- `contours_scaled/`（uniform）为旧流水线遗留，与当前 5 阶段主线无关。
 - 拍摄存在透视 / 旋转 / 缩放畸变；若后续要求压力显示精确到毫米，建议拍摄时加入标定板 / ArUco marker 求单应矩阵，把图像坐标校正到真实物理坐标（见 TALK-0002 第 6 节）。
 
 ---
@@ -310,5 +327,5 @@ ignored/insoles-boundary/ignored/
 ## 10. 延伸阅读
 
 - 设计讨论：[`discussions/TALK-0002.md`](discussions/TALK-0002.md)
-- 阶段任务留痕：[`tasks/`](tasks/)（掩码参数化 / OBB 重映射 / 左下角坐标 / 自适应 B-spline）
+- 阶段任务留痕：[`tasks/`](tasks/)（掩码参数化 / OBB 重映射 / 左下角坐标 / 自适应 B-spline / **修正 masks 重跑**）
 - 项目「数字大脑」快照：[`memories/`](memories/)（projectbrief / systemPatterns / progress 等）

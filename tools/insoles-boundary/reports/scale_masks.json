@@ -1,0 +1,302 @@
+{
+  "mask_dir": "masks_obb",
+  "output_dir": "masks_scaled",
+  "scale": 0.1,
+  "source_pixel_scale_cm": 0.00855,
+  "pixel_scale_cm": 0.08549999999999999,
+  "interpolation": "INTER_NEAREST",
+  "summary": {
+    "count": 17
+  },
+  "entries": [
+    {
+      "id": "base",
+      "source": "masks_obb\\base.png",
+      "output": "masks_scaled\\base.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "1",
+      "source": "masks_obb\\1.png",
+      "output": "masks_scaled\\1.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "2",
+      "source": "masks_obb\\2.png",
+      "output": "masks_scaled\\2.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "3",
+      "source": "masks_obb\\3.png",
+      "output": "masks_scaled\\3.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "4",
+      "source": "masks_obb\\4.png",
+      "output": "masks_scaled\\4.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "5",
+      "source": "masks_obb\\5.png",
+      "output": "masks_scaled\\5.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "6",
+      "source": "masks_obb\\6.png",
+      "output": "masks_scaled\\6.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "7",
+      "source": "masks_obb\\7.png",
+      "output": "masks_scaled\\7.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "8",
+      "source": "masks_obb\\8.png",
+      "output": "masks_scaled\\8.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "9",
+      "source": "masks_obb\\9.png",
+      "output": "masks_scaled\\9.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "10",
+      "source": "masks_obb\\10.png",
+      "output": "masks_scaled\\10.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "11",
+      "source": "masks_obb\\11.png",
+      "output": "masks_scaled\\11.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "12",
+      "source": "masks_obb\\12.png",
+      "output": "masks_scaled\\12.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "13",
+      "source": "masks_obb\\13.png",
+      "output": "masks_scaled\\13.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "14",
+      "source": "masks_obb\\14.png",
+      "output": "masks_scaled\\14.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "15",
+      "source": "masks_obb\\15.png",
+      "output": "masks_scaled\\15.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    },
+    {
+      "id": "16",
+      "source": "masks_obb\\16.png",
+      "output": "masks_scaled\\16.png",
+      "source_size": [
+        1318,
+        3244
+      ],
+      "output_size": [
+        132,
+        324
+      ],
+      "unique_values": [
+        0,
+        255
+      ]
+    }
+  ]
+}
