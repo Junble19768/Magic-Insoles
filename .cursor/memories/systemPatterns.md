@@ -1,7 +1,7 @@
 # System Patterns（架构与关键决策）
 
 > 系统怎么搭起来的、为什么这么搭。
-> 最近更新：2026-07-06
+> 最近更新：2026-07-09
 
 ## 架构总览
 
@@ -167,8 +167,11 @@ magic-insoles/
 - 所有 API 鉴权：`X-API-Key` Header
 - 前端 COP 计算与后端 feature.py 使用相同 4×4 均匀网格占位（待 TBD-1 确认后替换）
 - 错误统一处理，不透传原始异常到前端
+- **fsr_calibrate 双脚热力图坐标**（ADR-0004）：右脚 `field.T` + 标签 `(cx,cy)`；左脚 `field.T` → `flip(axis=0)` + 标签 `(x_max-cx,cy)`。**必须先 transpose 再 flip**；改坐标代码时用单点脉冲回归（标签对、图错 → 查顺序）
 
 ## 已知的坑 / 约束
+
+- **fsr_calibrate 左脚「字对图错」**：NumPy `flip`/`transpose` 顺序与 PyQtGraph 标签公式必须一致；禁止先 flip 再 transpose（ADR-0004）
 
 - **Web Bluetooth 要求 HTTPS 或 localhost**：`http://<IP>/insoles/realtime` 在真机上 BLE **不可用**，需 HTTPS 才能真机测试热力图
 - **STM32 LTE 测试阶段**：使用物联网模块 TCP 透传连接后端 `DEVICE_TCP_PORT`；`POST /api/ingest` 仅作本地仿真/调试入口
