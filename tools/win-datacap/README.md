@@ -262,6 +262,15 @@ python fsr_visualize.py            # 脚型可视化
 
 标定采集界面：FSR 通道下拉、双 Y 轴实时曲线、开始/停止录制（`record/*.csv`）。
 
+**嵌入式 COP 质心表**：boundary 几何导出为 C 头文件，供 STM32 快速计算重心/轨迹：
+
+```bash
+# 从 insoles-boundary render_payload 同步 JSON + C 质心表
+python ../../scripts/export_boundary_assets.py
+```
+
+产物见 `generated/insole_sensor_centroids.h`、`generated/insole_cop.h`；算法说明见 **[docs/COP_EMBEDDED.md](docs/COP_EMBEDDED.md)**。
+
 ---
 
 ### F. 离线拟合与参考电阻（Rx）选型

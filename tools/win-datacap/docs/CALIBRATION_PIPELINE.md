@@ -91,4 +91,31 @@ python plot_fsr_grid_fit.py --record-dir record/9mm
 | `record/<批次>/*.csv` | 原始标定采样（FSR 32 路电压 + 参考力，逐行对齐） |
 | `plot_fsr_grid_fit.py` | 批量拟合 CSV → `result.yml` + `fsr_fit.png` |
 | `best_rx.ipynb` | 基于拟合模型的 Rx（固定分压电阻）选型仿真 |
+| `generated/insole_sensor_centroids.h` | boundary 质心 float32 表（`export_boundary_assets.py` 生成） |
+| `generated/insole_cop.h` / `insole_cop.c` | 嵌入式 COP / 轨迹参考实现 |
+| `docs/COP_EMBEDDED.md` | 重心与轨迹算法（MCU / BLE / 主机分层） |
 | `example/`、`bak/` | 历史 / 备用实现，非主流程（见上级 README） |
+
+## 7. Boundary 质心 → 嵌入式 COP
+
+脚型几何来自 `tools/insoles-boundary/reports/render_payload.json`。当 boundary pipeline 重跑（masks 修正、CP 预算变更等）后，需同步导出 Web 与嵌入式质心表：
+
+```bash
+# 在仓库根目录执行
+python tools/scripts/export_boundary_assets.py
+```
+
+输出：
+
+- `frontend/public/data/boundary_assets.json` — 前端/后端 RLE masks + centroids
+- `tools/win-datacap/generated/insole_sensor_centroids.h` — STM32 质心常量
+- `tools/win-datacap/generated/insole_cop.h` / `insole_cop.c` — 参考实现（手维护，不随导出覆盖）
+
+校验：
+
+```bash
+cd tools/win-datacap
+python -m pytest fsr_calibrate/test_centroids_export.py fsr_calibrate/test_cop.py -q
+```
+
+算法与坐标约定详见 **[docs/COP_EMBEDDED.md](COP_EMBEDDED.md)**。
