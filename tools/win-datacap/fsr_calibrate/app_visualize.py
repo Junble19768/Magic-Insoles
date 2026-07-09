@@ -41,6 +41,7 @@ class FsrVisualizeApp(QtWidgets.QWidget):
         self.hub = DataHub()
         self.runtime = ReaderRuntime(self.hub, with_force=False)
         self.runtime.start()
+        self.pipeline = self.runtime.pipeline
 
         self._last_fsr_stamp = -1.0
         self._last_status_update = 0.0
@@ -70,6 +71,15 @@ class FsrVisualizeApp(QtWidgets.QWidget):
         self.pressure_mode_chk = QtWidgets.QCheckBox("真实压力替换电压读数")
         self.pressure_mode_chk.toggled.connect(self._on_pressure_mode_toggled)
         ctrl.addWidget(self.pressure_mode_chk)
+
+        ctrl.addSpacing(12)
+        self.start_record_btn = QtWidgets.QPushButton("开始录制")
+        self.start_record_btn.clicked.connect(self._on_start_record)
+        ctrl.addWidget(self.start_record_btn)
+        self.stop_record_btn = QtWidgets.QPushButton("停止录制")
+        self.stop_record_btn.clicked.connect(self._on_stop_record)
+        self.stop_record_btn.setEnabled(False)
+        ctrl.addWidget(self.stop_record_btn)
         ctrl.addStretch()
         root.addLayout(ctrl)
 
@@ -115,6 +125,18 @@ class FsrVisualizeApp(QtWidgets.QWidget):
     def _on_model_changed(self, label: str) -> None:
         self._model_key = MODEL_UI_TO_YAML.get(label, "power")
 
+    def _on_start_record(self) -> None:
+        path = self.pipeline.request_start_record()
+        self.start_record_btn.setEnabled(False)
+        self.stop_record_btn.setEnabled(True)
+        print(f"录制文件: record/{path.name}")
+
+    def _on_stop_record(self) -> None:
+        count = self.pipeline.request_stop_record()
+        self.start_record_btn.setEnabled(True)
+        self.stop_record_btn.setEnabled(False)
+        print(f"已保存 {count} 行")
+
     def _on_pressure_mode_toggled(self, checked: bool) -> None:
         if checked and not self.calibration.is_loaded:
             self.pressure_mode_chk.blockSignals(True)
@@ -132,6 +154,7 @@ class FsrVisualizeApp(QtWidgets.QWidget):
 
     def _refresh(self) -> None:
         fsr_data, fsr_stamp, fsr_ok, _, _, _ = self.hub.snapshot()
+        _, record_path, recording, row_count = self.pipeline.snapshot()
 
         if fsr_ok and fsr_stamp != self._last_fsr_stamp:
             foot_display = self._foot_display_values(fsr_data)
@@ -168,10 +191,17 @@ class FsrVisualizeApp(QtWidgets.QWidget):
                     "右脚 θ="
                     f"{_format_cop_angle(self.foot_panel.right_cop_fit)}"
                 )
+            if recording and record_path is not None:
+                parts.append(f"录制中 → record/{record_path.name} ({row_count} 行)")
             self.status_label.setText("  |  ".join(parts))
             self._last_status_update = now
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
         self.timer.stop()
+        _, record_path, recording, _ = self.pipeline.snapshot()
+        if recording:
+            count = self.pipeline.request_stop_record()
+            if record_path is not None:
+                print(f"窗口关闭，录制已自动保存: {record_path} ({count} 行)")
         self.runtime.stop()
         event.accept()

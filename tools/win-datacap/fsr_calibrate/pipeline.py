@@ -93,6 +93,92 @@ class CsvRecorder:
         return True
 
 
+class FsrRecordPipeline:
+    """FSR-only 录制管道（可视化模式，无需参考压力传感器）。"""
+
+    def __init__(self) -> None:
+        self._queue: SimpleQueue = SimpleQueue()
+        self._lock = threading.Lock()
+        self._recorder = CsvRecorder()
+        self._record_path: Path | None = None
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def enqueue_fsr(self, stamp: float, data: np.ndarray) -> None:
+        self._queue.put(("fsr", stamp, data.copy()))
+
+    def update_force(self, stamp: float, value: float) -> None:
+        del stamp, value
+
+    def interp_force(self, stamp: float) -> float | None:
+        del stamp
+        return None
+
+    def request_start_record(self) -> Path:
+        done = threading.Event()
+        result: dict[str, Path | None] = {"path": None}
+        self._queue.put(("start_record", done, result))
+        done.wait(timeout=5.0)
+        path = result["path"]
+        if path is None:
+            raise RuntimeError("录制启动超时")
+        return path
+
+    def request_stop_record(self) -> int:
+        done = threading.Event()
+        result: dict[str, int] = {"count": 0}
+        self._queue.put(("stop_record", done, result))
+        done.wait(timeout=5.0)
+        return result["count"]
+
+    def clear_anchors(self) -> None:
+        pass
+
+    def shutdown(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=2.0)
+
+    def snapshot(self) -> tuple[list[tuple[float, float]], Path | None, bool, int]:
+        with self._lock:
+            return [], self._record_path, self._recorder.is_active, self._recorder.row_count
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                item = self._queue.get(timeout=0.1)
+            except Empty:
+                continue
+            self._dispatch(item)
+
+    def _dispatch(self, item: tuple[Any, ...]) -> None:
+        kind = item[0]
+        if kind == "fsr":
+            _, stamp, data = item
+            self._on_fsr(float(stamp), data)
+        elif kind == "start_record":
+            _, done, result = item
+            path = self._recorder.start()
+            with self._lock:
+                self._record_path = path
+            result["path"] = path
+            done.set()
+        elif kind == "stop_record":
+            _, done, result = item
+            count = self._recorder.stop()
+            with self._lock:
+                if not self._recorder.is_active:
+                    self._record_path = None
+            result["count"] = count
+            done.set()
+
+    def _on_fsr(self, stamp: float, data: np.ndarray) -> None:
+        with self._lock:
+            recording = self._recorder.is_active
+        if recording:
+            self._recorder.write_row(stamp, data, 0.0)
+
+
 class AlignPipeline:
     """后台对齐管道：去重推拉力锚点，仅对可插值 FSR 时间戳写 CSV。"""
 

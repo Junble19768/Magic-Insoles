@@ -6,7 +6,7 @@ import numpy as np
 
 from .hub import DataHub
 from .io_readers import force_reader_thread, fsr_reader
-from .pipeline import AlignPipeline
+from .pipeline import AlignPipeline, FsrRecordPipeline
 
 
 class PipelineLike(Protocol):
@@ -18,38 +18,13 @@ class PipelineLike(Protocol):
 
     def clear_anchors(self) -> None: ...
 
+    def request_start_record(self) -> Path: ...
+
+    def request_stop_record(self) -> int: ...
+
     def shutdown(self) -> None: ...
 
     def snapshot(self) -> tuple[list[tuple[float, float]], Path | None, bool, int]: ...
-
-
-class NoOpPipeline:
-    """Minimal pipeline for visualize-only mode (FSR reader requires enqueue_fsr)."""
-
-    def enqueue_fsr(self, stamp: float, data: np.ndarray) -> None:
-        del stamp, data
-
-    def update_force(self, stamp: float, value: float) -> None:
-        del stamp, value
-
-    def interp_force(self, stamp: float) -> float | None:
-        del stamp
-        return None
-
-    def request_start_record(self) -> Path:
-        raise RuntimeError("此模式不支持录制")
-
-    def request_stop_record(self) -> int:
-        return 0
-
-    def clear_anchors(self) -> None:
-        pass
-
-    def shutdown(self) -> None:
-        pass
-
-    def snapshot(self) -> tuple[list[tuple[float, float]], Path | None, bool, int]:
-        return [], None, False, 0
 
 
 class ReaderRuntime:
@@ -67,7 +42,7 @@ class ReaderRuntime:
         elif with_force:
             self.pipeline = AlignPipeline()
         else:
-            self.pipeline = NoOpPipeline()
+            self.pipeline = FsrRecordPipeline()
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
 
